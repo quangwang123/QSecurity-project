@@ -217,6 +217,97 @@ int main() {
         fprintf(stderr, "Client: WSAStartup failed with error: %d\n", iResult);
         return 1;
     }
+    // int ret = 0; // 0: success; 1: cannot upload to server for analysis, 2: some file failed to scan
+    // //check file json and get data from it
+    // // open the file
+    // char* json_string = read_file_path_to_string("scan_info.json");
+    // if (!json_string) {
+    //     return 1;
+    // }
+    
+    // // parse the JSON data
+    // cJSON *json = cJSON_Parse(json_string);
+    // free(json_string);
+
+    // if (json == NULL) {
+    //     const char *error_ptr = cJSON_GetErrorPtr();
+    //     if (error_ptr != NULL) {
+    //         fprintf(stderr,"Error: %s\n", error_ptr);
+    //     }
+    //     cJSON_Delete(json);
+    //     return 1;
+    // }
+    
+    // // create handle threads depends on total file path (array length)
+    // int total_file_path = cJSON_GetArraySize(json);
+    // HANDLE hThreads[total_file_path];
+    // DWORD ThreadIds[total_file_path];
+    // DWORD exit_code;
+    // CheckHashThreadData check_hash_thread_data[total_file_path];
+
+    // // access to the JSON data
+    // if (cJSON_IsArray(json)){
+    //     int index = 0;
+    //     cJSON* file_path_element = NULL;
+    //     cJSON_ArrayForEach(file_path_element, json){
+    //         cJSON* file_path_item = cJSON_GetObjectItemCaseSensitive(file_path_element, "file_path");
+    //         if (cJSON_IsString(file_path_item) && (file_path_item->valuestring != NULL)) {
+    //             //create thread to check hash of the file
+    //             strcpy(check_hash_thread_data[index].file_path_input, file_path_item->valuestring);
+    //             hThreads[index] = CreateThread(
+    //                 NULL,
+    //                 0,
+    //                 check_hash_thread,
+    //                 &check_hash_thread_data[index],
+    //                 0,
+    //                 &ThreadIds[index]
+    //             );
+    //             index += 1;
+    //         }
+    //     }
+    // } else{
+    //     fprintf(stderr, "JSON data is not an array");
+    //     return 1;
+    // };
+
+    // WaitForMultipleObjects(total_file_path, hThreads, TRUE, INFINITE);
+
+    // cJSON* check_hash_failed_files_list = cJSON_CreateArray(); //create check hash failed file list using json array
+    // cJSON* hash_string_list = cJSON_CreateArray(); //create hash string list using json array
+
+    // char* json_check_hash_failed_files_list = cJSON_PrintUnformatted(check_hash_failed_files_list);
+    // FILE *fp = fopen("scan_failed_files.json", "w+");
+    // if (fp == NULL){
+    //     fprintf(stderr, "Error: Unable to open the file.\n");
+    // }
+    // fputs(json_check_hash_failed_files_list, fp);
+    // fclose(fp);
+    // cJSON_free(json_check_hash_failed_files_list);
+    // cJSON_Delete(check_hash_failed_files_list);
+
+    // delete the JSON object
+    // cJSON_Delete(json);
+
+    //send hash to server for analysis
+
+    // const char* my_hash_string = hash_str;
+
+    // // Đảm bảo rằng chuỗi hash có đúng 64 ký tự
+    // if (strlen(my_hash_string) != SHA256_HASH_STRING_LEN) {
+    //     fprintf(stderr, "Error: The hash string is not 64 characters long.\n");
+    //     return 1;
+    // }
+
+    // // printf("Client: Starting to send hash...\n");
+    // char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+    // int result = send_hash_to_server(json_string_to_send, strlen(json_string_to_send));
+
+    // if (result == 0) {
+    //     // printf("\nClient: Hash sent successfully.\n");
+    // } else {
+    //     fprintf(stderr, "\nClient: Failed to send hash.\n");
+    //     ret = 1;
+    // }
 
     SOCKET ListenSocket = INVALID_SOCKET;
     struct addrinfo *result = NULL, hints;
@@ -466,6 +557,19 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
         IsAllHashFailed = 1;
     }
+
+    // fwprintf(stdout, L"Total successful files scanned: %d\n", total_success_file_scanned);
+    // for (int i = 0; i < total_success_file_scanned; i++){
+    //     FILE *fp = _wfopen(L"successful_scanned_files.txt", L"a, ccs=UTF-8");
+    //     if (fp) {
+    //         fwprintf(fp, success_file_scanned[i]);
+    //         fwprintf(fp, L"\n");
+    //         fclose(fp);
+    //     } else {
+    //         // Nếu không mở được file, in ra stderr
+    //         fwprintf(stderr, L"Không thể mở successful_scanned_files.txt để ghi.\n");
+    //     }
+    // }
 
     json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
     json_string_length = strlen(json_string_to_send);
@@ -1179,5 +1283,1114 @@ SOCKET initialize_connection_to_virus_scan_server(){
 
     freeaddrinfo(result); // Giải phóng bộ nhớ của getaddrinfo
 
+    // if (ConnectSocket == INVALID_SOCKET) {
+    //     fprintf(stderr, "Client: Unable to connect to server!\n");
+    //     WSACleanup();
+    //     return ConnectSocket;
+    // }
     return ConnectSocket;
 }
+
+// int scan_file_in_directory1(const wchar_t* lpPath, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET ServerSocket) {
+
+//     // WIN32_FIND_DATAW dùng để lưu thông tin file/thư mục (W cho Wide Character/Unicode)
+//     WIN32_FIND_DATAW ffd;
+
+//     static int current_recursion_depth = 0;
+
+//     // current_recursion_depth++;
+    
+//     // Tạo pattern tìm kiếm: [Đường dẫn hiện tại]\*
+//     wchar_t szDir[MAX_PATH_LENGTH]; 
+//     // Dùng swprintf_s để đảm bảo an toàn buffer, định dạng đường dẫn Unicode
+//     if (swprintf_s(szDir, MAX_PATH_LENGTH, L"%s\\*", lpPath) < 0) {
+//         // Xử lý lỗi nếu việc tạo chuỗi thất bại
+//         fwprintf(stderr, L"Lỗi: Không đủ bộ nhớ hoặc lỗi định dạng đường dẫn.\n");
+//         // current_recursion_depth--;
+//         return 1;
+//     }
+
+//     // Bắt đầu tìm kiếm file đầu tiên
+//     HANDLE hFind = FindFirstFileW(szDir, &ffd);
+
+//     if (hFind == INVALID_HANDLE_VALUE) {
+//         // Lỗi, ví dụ: thư mục không tồn tại hoặc không có quyền truy cập
+//         // Lỗi GetLastError() có thể dùng để xác định chi tiết
+//         // current_recursion_depth--;
+//         fwprintf(stderr, L"Lỗi: Không tìm thấy tệp hoặc lỗi truy cập.\n");
+//         return 1;
+//     }
+
+//     // use static variable because this function is recursive
+
+//     static wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LENGTH];
+//     static int total_file_path_in_queue = 0;
+
+//     HANDLE hThreads[MAX_FILE_PATH_IN_QUEUE];
+//     DWORD ThreadIds[MAX_FILE_PATH_IN_QUEUE];
+//     DWORD exit_code;
+//     CheckHashThreadData check_hash_thread_data[MAX_FILE_PATH_IN_QUEUE];
+//     int iResult;
+//     char* server_scan_result;
+//     int IsAnyHashFailed = 0;
+
+//     do {
+//         // Bỏ qua thư mục "." và ".."
+//         if (wcscmp(ffd.cFileName, L".") == 0 || wcscmp(ffd.cFileName, L"..") == 0) {
+//             continue;
+//         }
+
+//         // Tạo đường dẫn đầy đủ của mục hiện tại
+//         wchar_t szFilePath[MAX_PATH_LENGTH];
+//         if (swprintf_s(szFilePath, MAX_PATH_LENGTH, L"%s\\%s", lpPath, ffd.cFileName) < 0) {
+//             fwprintf(stderr, L"Lỗi: Không đủ bộ nhớ hoặc lỗi định dạng đường dẫn đầy đủ.\n");
+//             continue; // Bỏ qua file/thư mục này và tiếp tục
+//         }
+
+//         // Kiểm tra xem đó có phải là thư mục con không
+//         if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+//             // Là thư mục con, gọi đệ quy để duyệt sâu hơn
+//             // current_recursion_depth++;
+//             scan_file_in_directory1(szFilePath, check_hash_failed_files_list, hash_string_list, ServerSocket);
+//             // current_recursion_depth--;
+//         } else {
+//             FILE *fp = fopen("scan_paths.txt", "a+");
+//             if (fp == NULL){
+//                 printf("Error: Unable to open the file.\n");
+//             }
+//             fprintf(fp, "\n");
+//             fwprintf(fp, szFilePath);
+//             fclose(fp);
+//             // wcscpy(file_path_queue[total_file_path_in_queue], szFilePath);
+//             // total_file_path_in_queue += 1;
+
+//             // if (total_file_path_in_queue == MAX_FILE_PATH_IN_QUEUE){
+//             //     // prepare for scanning
+//             //     clear_json_array(hash_string_list);
+//             //     clear_json_array(check_hash_failed_files_list);
+
+//             //     // prepared done, start scanning
+//             //     for (int i = 0; i < total_file_path_in_queue; i++){
+//             //         // wprintf(L"%s\n", file_path_queue[i]);
+//             //         wcscpy(check_hash_thread_data[i].file_path_input, file_path_queue[i]);
+//             //         hThreads[i] = CreateThread(
+//             //             NULL,
+//             //             0,
+//             //             check_hash_thread,
+//             //             &check_hash_thread_data[i],
+//             //             0,
+//             //             &ThreadIds[i]
+//             //         );
+//             //     }
+
+//             //     WaitForMultipleObjects(total_file_path_in_queue, hThreads, TRUE, INFINITE);
+
+//             //     for (int i = 0; i < total_file_path_in_queue; i++){
+//             //         GetExitCodeThread(hThreads[i], &exit_code);
+//             //         if ((int)exit_code == 1){ // add file to check_hash_failed_files_list if check hash failed
+//             //             cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+//             //             AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+//             //             cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+//             //             IsAnyHashFailed = 1;
+//             //         }else{ // if not, add to hash string list to send to server for analysis
+//             //             if (strlen(check_hash_thread_data[i].hash_string_output) == SHA256_HASH_STRING_LEN){ // make sure each hash in array are exactly 64 characters long before send
+//             //                 cJSON* hash_string_object = cJSON_CreateObject();
+//             //                 cJSON_AddStringToObject(hash_string_object, "hash_str",check_hash_thread_data[i].hash_string_output);
+//             //                 cJSON_AddItemToArray(hash_string_list, hash_string_object);
+//             //             } else{
+//             //                 cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+//             //                 AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+//             //                 cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+//             //                 IsAnyHashFailed = 1;
+//             //             }
+//             //         CloseHandle(hThreads[i]);
+//             //         }
+//             //     }
+
+//             //     char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+//             //     long long length = strlen(json_string_to_send);
+
+//             //     // printf("%s\n", json_string_to_send);
+
+//             //     // int result = send_hash_to_server(json_string_to_send, strlen(json_string_to_send), ServerSocket, server_scan_result);
+
+//             //     iResult = send(ServerSocket, (const char*)&length, sizeof(long long), 0);
+//             //     if (iResult == SOCKET_ERROR) {
+//             //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+//             //         // closesocket(ConnectSocket);
+//             //         // WSACleanup();
+//             //         // FIX ME: Create a finsh label and goto it instead of return
+//             //         memset(file_path_queue, 0, sizeof(file_path_queue));
+//             //         total_file_path_in_queue = 0;
+//             //         continue;
+//             //         // return 1;
+//             //     }
+
+//             //     // printf("Client: Bytes sent: %d\n", iResult);
+
+//             //     // printf("Client: Sending hash: '%s'\n", hash_to_send);
+//             //     // printf("hash to send: %s\n", hash_to_send);
+//             //     iResult = send(ServerSocket, json_string_to_send, length, 0); // Sử dụng độ dài được truyền vào
+//             //     if (iResult == SOCKET_ERROR) {
+//             //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+//             //         // closesocket(ConnectSocket);
+//             //         // WSACleanup();
+//             //         // FIX ME: Create a finsh label and goto it instead of return
+//             //         memset(file_path_queue, 0, sizeof(file_path_queue));
+//             //         total_file_path_in_queue = 0;
+//             //         continue;
+//             //         // return 1;
+//             //     }
+//             //     // printf("Client: Bytes sent: %d\n", iResult);
+
+//             //     size_t array_len;
+//             //     iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+//             //     char recvbuf[array_len];
+//             //     iResult = recv(ServerSocket, recvbuf, array_len, 0);
+//             //     if (iResult > 0) {
+//             //         // printf("Client: Received response from server: '%s'\n", recvbuf);
+
+//             //         // PHÂN TÍCH JSON PHẢN HỒI
+//             //         cJSON* root = cJSON_Parse(recvbuf);
+//             //         if (root) {
+//             //             server_scan_result = cJSON_PrintUnformatted(root);
+//             //             // cJSON_free(json_str);
+//             //         } else {
+//             //             const char* error_ptr = cJSON_GetErrorPtr();
+//             //             if (error_ptr != NULL) {
+//             //                 fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+//             //             } else {
+//             //                 fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+//             //             }
+//             //         }
+//             //         cJSON_Delete(root);
+//             //     }
+
+//             //     // printf("%s\n", server_scan_result);
+
+//             //     cJSON_free(server_scan_result);
+//             //     cJSON_free(json_string_to_send);
+
+//             //     // reset file path queue
+//             //     memset(file_path_queue, 0, sizeof(file_path_queue));
+//             //     total_file_path_in_queue = 0;
+//             // }
+//         }
+//     } while (FindNextFileW(hFind, &ffd) != 0); // Tiếp tục tìm file tiếp theo
+
+//     // Xử lý lỗi sau khi vòng lặp kết thúc (thường là ERROR_NO_MORE_FILES)
+//     DWORD dwError = GetLastError();
+//     if (dwError != ERROR_NO_MORE_FILES) {
+//         // Xử lý lỗi khác (nếu có)
+//         fwprintf(stderr, L"Lỗi tìm kiếm: %lu\n", dwError);
+//     }
+
+//     // Đóng search handle
+//     FindClose(hFind);
+
+//     // printf("current recursion level: %d\n", current_recursion_depth);
+
+//     // check for leftover files in queue
+//     if (total_file_path_in_queue > 0 && current_recursion_depth == 0){ // only print leftover files when current recursion depth is 0
+//         printf("There are %d files left in queue\n", total_file_path_in_queue);
+//         for (int i = 0; i < total_file_path_in_queue; i++){
+//             printf("%s\n", file_path_queue[i]);
+//         }
+//     }
+
+//     // current_recursion_depth--;
+
+//     return 0;
+// }
+
+// scan batch:
+                // AddWideStringValueToCJSONObject(current_scan_progress, "current_scanning_file", file_path_queue[total_file_path_in_queue - 1]);
+                // cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", total_scanned_files);
+                // cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", total_viruses_found);
+
+                // char* current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+                // long long current_scan_progress_string_length = strlen(current_scan_progress_string);
+
+                // iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                // if (iResult == SOCKET_ERROR) {
+                //     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //     IsStopScanning = 1;
+                //     cJSON_free(current_scan_progress_string);
+                //     break;
+                // }
+                
+                // iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(long long), 0);
+                // if (iResult == SOCKET_ERROR) {
+                //     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //     IsStopScanning = 1;
+                //     cJSON_free(current_scan_progress_string);
+                //     break;
+                // }
+
+                // iResult = send(ClientSocket, current_scan_progress_string, current_scan_progress_string_length, 0);
+                // if (iResult == SOCKET_ERROR) {
+                //     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //     IsStopScanning = 1;
+                //     cJSON_free(current_scan_progress_string);
+                //     break;
+                // }
+
+                // cJSON_free(current_scan_progress_string);
+                // cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
+                // cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
+                // cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");
+
+                // // prepare for scanning
+                // clear_json_array(hash_string_list);
+                // clear_json_array(check_hash_failed_files_list);
+                // clear_json_array(virus_found_file_paths);
+                // IsAllHashFailed = 0;
+
+                // while (1){
+                //     // prepared done, start scanning
+                //     for (int i = 0; i < total_file_path_in_queue; i++){
+                //         wcscpy(check_hash_thread_data[i].file_path_input, file_path_queue[i]);
+                //         hThreads[i] = CreateThread(
+                //             NULL,
+                //             0,
+                //             check_hash_thread,
+                //             &check_hash_thread_data[i],
+                //             0,
+                //             &ThreadIds[i]
+                //         );
+                //     }
+
+                //     WaitForMultipleObjects(total_file_path_in_queue, hThreads, TRUE, INFINITE);
+
+                //     for (int i = 0; i < total_file_path_in_queue; i++){
+                //         GetExitCodeThread(hThreads[i], &exit_code);
+                //         if ((int)exit_code == 1){ // add file to check_hash_failed_files_list if check hash failed
+                //             cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+                //             AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                //             cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+                //             IsAnyHashFailed = 1;
+                //         }else{ // if not, add to hash string list to send to server for analysis
+                //             if (strlen(check_hash_thread_data[i].hash_string_output) == SHA256_HASH_STRING_LEN){ // make sure each hash in array are exactly 64 characters long before send
+                //                 cJSON* hash_string_object = cJSON_CreateObject();
+                //                 cJSON_AddStringToObject(hash_string_object, "hash_str", check_hash_thread_data[i].hash_string_output);
+                //                 cJSON_AddItemToArray(hash_string_list, hash_string_object);
+                //                 wcscpy(success_file_scanned[i], check_hash_thread_data[i].file_path_input); //FIX ME: Some elements in success_file_scanned can be empty, need to fix it
+                //                 total_scanned_files += 1;
+                //             } else{
+                //                 cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+                //                 AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                //                 cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+                //                 IsAnyHashFailed = 1;
+                //             }
+                //         CloseHandle(hThreads[i]);
+                //         }
+                //     }
+
+                //     if(cJSON_GetArraySize(hash_string_list) == 0){ // if hash_string_list is empty, scan next batch of files immediately to prevent sending empty json array to server (send empty json array will waste server resource)
+                //         iResult = send(ClientSocket, "6", 1, 0); // send code 6 mean entire file batch failed to scan
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         }
+
+                //         iResult = recv(ClientSocket, &file_scan_error_should_rescan_or_skip_or_cancel_respone_code, 1, 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         }
+
+                //         if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '1'){
+                //             continue;
+                //         } else if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '3'){
+                //             IsStopScanning = 1;
+                //             break;
+                //         }
+
+                //         IsAllHashFailed = 1;
+                //     }
+
+                //     break;
+                // }
+
+                // if (IsStopScanning){
+                //     break;
+                // }
+
+                // // fwprintf(stdout, L"Total successful files scanned: %d\n", total_success_file_scanned);
+                // // for (int i = 0; i < total_success_file_scanned; i++){
+                // //     FILE *fp = _wfopen(L"successful_scanned_files.txt", L"a, ccs=UTF-8");
+                // //     if (fp) {
+                // //         fwprintf(fp, success_file_scanned[i]);
+                // //         fwprintf(fp, L"\n");
+                // //         fclose(fp);
+                // //     } else {
+                // //         // Nếu không mở được file, in ra stderr
+                // //         fwprintf(stderr, L"Không thể mở successful_scanned_files.txt để ghi.\n");
+                // //     }
+                // // }
+
+                // char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+                // long long length = strlen(json_string_to_send);
+
+                // IsSendOrReceiveHashFailed = 0;
+                // while (IsAllHashFailed == 0){
+                //     iResult = send(ServerSocket, (const char*)&length, sizeof(long long), 0);
+                //     if (iResult == SOCKET_ERROR) {
+                //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         IsSendOrReceiveHashFailed = 1;
+                //         goto finish_send_hash;
+                //     }
+
+                //     iResult = send(ServerSocket, json_string_to_send, length, 0); // Sử dụng độ dài được truyền vào
+                //     if (iResult == SOCKET_ERROR) {
+                //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         IsSendOrReceiveHashFailed = 1;
+                //         goto finish_send_hash;
+                //     }
+                //     {
+                //         size_t array_len;
+                //         iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+                //         char recvbuf[array_len];
+                //         iResult = recv(ServerSocket, recvbuf, array_len, 0);
+                //         if (iResult > 0) {
+                //             // PHÂN TÍCH JSON PHẢN HỒI
+                //             server_scan_result = cJSON_Parse(recvbuf);
+                //             if (!server_scan_result) {
+                //                 const char* error_ptr = cJSON_GetErrorPtr();
+                //                 if (error_ptr != NULL) {
+                //                     fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+                //                 } else {
+                //                     fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+                //                 }
+                //                 IsSendOrReceiveHashFailed = 1;
+                //             }
+                //         } else{
+                //             IsSendOrReceiveHashFailed = 1;
+                //         }
+                //     }
+
+                //     finish_send_hash:
+                //     if (IsSendOrReceiveHashFailed == 0){
+                //         break;
+                //     } else{
+                //         // send code 3 mean failed to send or receive hash to/from server
+                //         iResult = send(ClientSocket, "3", 1, 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //             break;
+                //         }
+                //         char response_code; // response code from GUI client, 0: continue, 1: skip, 2: stop scanning
+                //         iResult = recv(ClientSocket, &response_code, 1, 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+                //             break;
+                //         }
+
+                //         if (response_code == '1'){
+                //             IsSendOrReceiveHashFailed = 0; // reset flag and try to send/receive hash again
+                //         } else if (response_code == '2'){
+                //             // skip this batch of files
+                //             break;
+                //         } else if (response_code == '3'){
+                //             // stop scanning
+                //             IsStopScanning = 1;
+                //             break;
+                //         }
+                //     }
+                    
+                // }
+                // cJSON_free(json_string_to_send);
+
+                // if(IsStopScanning){
+                //     break;
+                // }
+
+                // if (!IsSendOrReceiveHashFailed || !IsAllHashFailed){
+                //     // process server scan result
+                //     int server_scan_result_element_array_element_index = 0;
+                //     cJSON* server_scan_result_element = NULL;
+                //     cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
+                //         cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
+                //         if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+                //             cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                //             cJSON* virus_found_file_object = cJSON_CreateObject();
+                //             AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_element_array_element_index]);
+                //             cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                //             cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                //             total_viruses_found += 1;
+                //             IsVirusFoundInThisBatch = 1;
+                //         }
+                //         server_scan_result_element_array_element_index += 1;
+                //     }
+
+                //     cJSON_Delete(server_scan_result);
+
+                //     if (IsVirusFoundInThisBatch == 1){
+                //         // send code 4 mean found virus in this batch
+                //         iResult = send(ClientSocket, "4", 1, 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         }
+
+                //         char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
+                //         long long virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+
+                //         iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(long long), 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         }
+
+                //         iResult = send(ClientSocket, virus_found_file_paths_string, virus_found_file_paths_string_length, 0);
+                //         if (iResult == SOCKET_ERROR) {
+                //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //         }
+
+                //         cJSON_free(virus_found_file_paths_string);
+                //     }
+                // }
+
+                // if (IsAnyHashFailed){
+                //     cJSON *check_hash_failed_file_element = check_hash_failed_files_list->child;
+                //     while (check_hash_failed_file_element != NULL) {
+                //         cJSON *check_hash_failed_file_item = cJSON_GetObjectItemCaseSensitive(check_hash_failed_file_element, "file_path");
+                //         if (cJSON_IsString(check_hash_failed_file_item) && (check_hash_failed_file_item->valuestring != NULL)){
+                //             cJSON_AddStringToObject(current_scan_progress, "current_scanning_file", check_hash_failed_file_item->valuestring);
+                //             cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", total_scanned_files);
+                //             cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", total_viruses_found);
+
+                //             char* current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+                //             long long current_scan_progress_string_length = strlen(current_scan_progress_string);
+
+                //             iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                //             if (iResult == SOCKET_ERROR) {
+                //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 IsStopScanning = 1;
+                //                 cJSON_free(current_scan_progress_string);
+                //                 break;
+                //             }
+                            
+                //             iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(long long), 0);
+                //             if (iResult == SOCKET_ERROR) {
+                //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 IsStopScanning = 1;
+                //                 cJSON_free(current_scan_progress_string);
+                //                 break;
+                //             }
+
+                //             iResult = send(ClientSocket, current_scan_progress_string, current_scan_progress_string_length, 0);
+                //             if (iResult == SOCKET_ERROR) {
+                //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 IsStopScanning = 1;
+                //                 cJSON_free(current_scan_progress_string);
+                //                 break;
+                //             }
+
+                //             cJSON_free(current_scan_progress_string);
+                //             cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
+                //             cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
+                //             cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");
+                        
+                //             int IsScanHashFailed = 0;
+                //             IsVirusFoundInThisBatch = 0;
+
+                //             wchar_t check_hash_failed_file_item_widechar_string[MAX_PATH_LENGTH];
+                //             MultiByteToWideChar(CP_UTF8, 0, check_hash_failed_file_item->valuestring, -1, check_hash_failed_file_item_widechar_string, MAX_PATH_LENGTH);
+
+                //             // start scanning
+                //             wcscpy(check_hash_thread_data[0].file_path_input, check_hash_failed_file_item_widechar_string);
+                //             hThreads[0] = CreateThread(
+                //                 NULL,
+                //                 0,
+                //                 check_hash_thread,
+                //                 &check_hash_thread_data,
+                //                 0,
+                //                 &ThreadIds[0]
+                //             );
+
+                //             WaitForSingleObject(hThreads[0], INFINITE);
+
+                //             GetExitCodeThread(hThreads[0], &exit_code);
+                            
+                //             if ((int)exit_code == 1){ // add file to check_hash_failed_files_list if check hash failed
+                //                 IsScanHashFailed = 1;
+                //                 goto send_scan_result_to_gui;
+                //             }else{ // if not add to hash string list to send to server for analysis
+                //                 if (strlen(check_hash_thread_data[0].hash_string_output) == SHA256_HASH_STRING_LEN){ // make sure each hash in array are exactly 64 characters long before send
+                //                     cJSON* hash_string_object = cJSON_CreateObject();
+                //                     cJSON_AddStringToObject(hash_string_object, "hash_str",check_hash_thread_data[0].hash_string_output);
+                //                     cJSON_AddItemToArray(hash_string_list, hash_string_object);
+                //                 } else{
+                //                     IsScanHashFailed = 1;
+                //                     goto send_scan_result_to_gui;
+                //                 }
+
+                //             }
+
+                //             char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+                //             long long length = strlen(json_string_to_send);
+
+                //             while (1){
+                //                 iResult = send(ServerSocket, (const char*)&length, sizeof(long long), 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                     IsScanHashFailed = 1;
+                //                     break;
+                //                 }
+
+                //                 iResult = send(ServerSocket, json_string_to_send, length, 0); // Sử dụng độ dài được truyền vào
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                     IsScanHashFailed = 1;
+                //                     break;
+                //                 }
+
+                //                 size_t array_len;
+                //                 iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+                //                 char recvbuf[array_len];
+                //                 iResult = recv(ServerSocket, recvbuf, array_len, 0);
+                //                 if (iResult > 0) {
+                //                     // PHÂN TÍCH JSON PHẢN HỒI
+                //                     server_scan_result = cJSON_Parse(recvbuf);
+                //                     if (!server_scan_result) {
+                //                         const char* error_ptr = cJSON_GetErrorPtr();
+                //                         if (error_ptr != NULL) {
+                //                             fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+                //                         } else {
+                //                             fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+                //                         }
+                //                         IsScanHashFailed = 1;
+                //                     }
+                //                 } else{
+                //                     IsScanHashFailed = 1;
+                //                 }
+
+                //                 break;
+                //             }
+
+                //             cJSON_free(json_string_to_send);
+
+                //             // process server scan result
+                //             int server_scan_result_array_element_index = 0;
+                //             cJSON* server_scan_result_element = NULL;
+                //             cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
+                //                 cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
+                //                 if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+                //                     cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                //                     cJSON* virus_found_file_object = cJSON_CreateObject();
+                //                     AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_array_element_index]);
+                //                     cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                //                     cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                //                     total_viruses_found += 1;
+                //                     IsVirusFoundInThisBatch = 1;
+                //                 }
+                //                 server_scan_result_array_element_index += 1;
+                //             }
+
+                //             cJSON_Delete(server_scan_result);
+
+                //             if (IsVirusFoundInThisBatch == 1){
+                //                 // send code 4 mean found virus in this batch
+                //                 iResult = send(ClientSocket, "4", 1, 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+
+                //                 char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
+                //                 long long virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+
+                //                 iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(long long), 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+
+                //                 iResult = send(ClientSocket, virus_found_file_paths_string, virus_found_file_paths_string_length, 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+
+                //                 cJSON_free(virus_found_file_paths_string);
+                //             }
+
+                //             send_scan_result_to_gui:
+                //             if (IsScanHashFailed == 1){
+                //                 // send code 5 mean file failed to scan
+                //                 iResult = send(ClientSocket, "5", 1, 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+
+                //                 char *check_hash_failed_file_element_string = cJSON_PrintUnformatted(check_hash_failed_file_element);
+                //                 long long check_hash_failed_file_element_string_length = strlen(check_hash_failed_file_element_string);
+
+                //                 iResult = send(ClientSocket, check_hash_failed_file_element_string, check_hash_failed_file_element_string_length, 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+
+                //                 iResult = recv(ClientSocket, &file_scan_error_should_rescan_or_skip_or_cancel_respone_code, 1, 0);
+                //                 if (iResult == SOCKET_ERROR) {
+                //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                //                 }
+                                
+                //                 if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '1'){
+                //                     cJSON_free(check_hash_failed_file_element_string);
+                //                     continue;
+                //                 }else if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '3'){
+                //                     cJSON_free(check_hash_failed_file_element_string);
+                //                     IsStopScanning = 1;
+                //                     break;
+                //                 }else{
+                //                     cJSON_free(check_hash_failed_file_element_string);
+                //                 }
+
+                //             }else{
+                //                 total_scanned_files++;
+                //             }
+
+                //             CloseHandle(hThreads[0]);
+                //         }
+                //         check_hash_failed_file_element = check_hash_failed_file_element->next;
+                //     }
+                // }
+
+                // // reset file path queue
+                // memset(file_path_queue, 0, sizeof(file_path_queue));
+                // memset(success_file_scanned, 0, sizeof(success_file_scanned));
+                // total_file_path_in_queue = 0;
+                // IsVirusFoundInThisBatch = 0;
+                // IsAnyHashFailed = 0;
+
+        // scan leftover:
+
+        // // prepare for scanning
+        // clear_json_array(hash_string_list);
+        // clear_json_array(check_hash_failed_files_list);
+        // clear_json_array(virus_found_file_paths);
+        // IsAllHashFailed = 0;
+
+        // while (1){
+        //     // prepared done, start scanning
+        //     for (int i = 0; i < total_file_path_in_queue; i++){
+        //         wcscpy(check_hash_thread_data[i].file_path_input, file_path_queue[i]);
+        //         hThreads[i] = CreateThread(
+        //             NULL,
+        //             0,
+        //             check_hash_thread,
+        //             &check_hash_thread_data[i],
+        //             0,
+        //             &ThreadIds[i]
+        //         );
+        //     }
+
+        //     WaitForMultipleObjects(total_file_path_in_queue, hThreads, TRUE, INFINITE);
+
+        //     for (int i = 0; i < total_file_path_in_queue; i++){
+        //         GetExitCodeThread(hThreads[i], &exit_code);
+        //         if ((int)exit_code == 1){ // add file to check_hash_failed_files_list if check hash failed
+        //             cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+        //             AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+        //             cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+        //             IsAnyHashFailed = 1;
+        //         }else{ // if not, add to hash string list to send to server for analysis
+        //             if (strlen(check_hash_thread_data[i].hash_string_output) == SHA256_HASH_STRING_LEN){ // make sure each hash in array are exactly 64 characters long before send
+        //                 cJSON* hash_string_object = cJSON_CreateObject();
+        //                 cJSON_AddStringToObject(hash_string_object, "hash_str", check_hash_thread_data[i].hash_string_output);
+        //                 cJSON_AddItemToArray(hash_string_list, hash_string_object);
+        //                 wcscpy(success_file_scanned[i], check_hash_thread_data[i].file_path_input); //FIX ME: Some elements in success_file_scanned can be empty, need to fix it
+        //                 total_scanned_files += 1;
+        //             } else{
+        //                 cJSON* check_hash_failed_file_object = cJSON_CreateObject();
+        //                 AddWideStringValueToCJSONObject(check_hash_failed_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+        //                 cJSON_AddItemToArray(check_hash_failed_files_list, check_hash_failed_file_object);
+        //                 IsAnyHashFailed = 1;
+        //             }
+        //         CloseHandle(hThreads[i]);
+        //         }
+        //     }
+
+        //     if(cJSON_GetArraySize(hash_string_list) == 0){ // if hash_string_list is empty, scan next batch of files immediately to prevent sending empty json array to server (send empty json array will waste server resource)
+        //         iResult = send(ClientSocket, "6", 1, 0); // send code 6 mean entire file batch failed to scan
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         }
+
+        //         iResult = recv(ClientSocket, &file_scan_error_should_rescan_or_skip_or_cancel_respone_code, 1, 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         }
+
+        //         if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '1'){
+        //             continue;
+        //         } else if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '3'){
+        //             IsStopScanning = 1;
+        //             break;
+        //         }
+
+        //         IsAllHashFailed = 1;
+        //     }
+
+        //     break;
+        // }
+
+        // if (IsStopScanning){
+        //     return 1;
+        // }
+
+        // // fwprintf(stdout, L"Total successful files scanned: %d\n", total_success_file_scanned);
+        // // for (int i = 0; i < total_success_file_scanned; i++){
+        // //     FILE *fp = _wfopen(L"successful_scanned_files.txt", L"a, ccs=UTF-8");
+        // //     if (fp) {
+        // //         fwprintf(fp, success_file_scanned[i]);
+        // //         fwprintf(fp, L"\n");
+        // //         fclose(fp);
+        // //     } else {
+        // //         // Nếu không mở được file, in ra stderr
+        // //         fwprintf(stderr, L"Không thể mở successful_scanned_files.txt để ghi.\n");
+        // //     }
+        // // }
+
+        // char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+        // long long length = strlen(json_string_to_send);
+
+        // IsSendOrReceiveHashFailed = 0;
+        // while (IsAllHashFailed == 0){
+        //     iResult = send(ServerSocket, (const char*)&length, sizeof(long long), 0);
+        //     if (iResult == SOCKET_ERROR) {
+        //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         IsSendOrReceiveHashFailed = 1;
+        //         goto finish_send_hash_leftover;
+        //     }
+
+        //     iResult = send(ServerSocket, json_string_to_send, length, 0); // Sử dụng độ dài được truyền vào
+        //     if (iResult == SOCKET_ERROR) {
+        //         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         IsSendOrReceiveHashFailed = 1;
+        //         goto finish_send_hash_leftover;
+        //     }
+        //     {
+        //         size_t array_len;
+        //         iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+        //         char recvbuf[array_len];
+        //         iResult = recv(ServerSocket, recvbuf, array_len, 0);
+        //         if (iResult > 0) {
+        //             // PHÂN TÍCH JSON PHẢN HỒI
+        //             server_scan_result = cJSON_Parse(recvbuf);
+        //             if (!server_scan_result) {
+        //                 const char* error_ptr = cJSON_GetErrorPtr();
+        //                 if (error_ptr != NULL) {
+        //                     fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+        //                 } else {
+        //                     fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+        //                 }
+        //                 IsSendOrReceiveHashFailed = 1;
+        //             }
+        //         } else{
+        //             IsSendOrReceiveHashFailed = 1;
+        //         }
+        //     }
+
+        //     finish_send_hash_leftover:
+        //     if (IsSendOrReceiveHashFailed == 0){
+        //         break;
+        //     } else{
+        //         // send code 3 mean failed to send or receive hash to/from server
+        //         iResult = send(ClientSocket, "3", 1, 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //             break;
+        //         }
+        //         char response_code; // response code from GUI client, 0: continue, 1: skip, 2: stop scanning
+        //         iResult = recv(ClientSocket, &response_code, 1, 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+        //             break;
+        //         }
+
+        //         if (response_code == '1'){
+        //             IsSendOrReceiveHashFailed = 0; // reset flag and try to send/receive hash again
+        //         } else if (response_code == '2'){
+        //             // skip this batch of files
+        //             break;
+        //         } else if (response_code == '3'){
+        //             // stop scanning
+        //             IsStopScanning = 1;
+        //             break;
+        //         }
+        //     }
+            
+        // }
+        // cJSON_free(json_string_to_send);
+
+        // if(IsStopScanning){
+        //     return 1;
+        // }
+
+        // if (!IsSendOrReceiveHashFailed || !IsAllHashFailed){
+        //     // process server scan result
+        //     int server_scan_result_element_array_element_index = 0;
+        //     cJSON* server_scan_result_element = NULL;
+        //     cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
+        //         cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
+        //         if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+        //             cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+        //             cJSON* virus_found_file_object = cJSON_CreateObject();
+        //             AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_element_array_element_index]);
+        //             cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+        //             cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+        //             total_viruses_found += 1;
+        //             IsVirusFoundInThisBatch = 1;
+        //         }
+        //         server_scan_result_element_array_element_index += 1;
+        //     }
+
+        //     cJSON_Delete(server_scan_result);
+
+        //     if (IsVirusFoundInThisBatch == 1){
+        //         // send code 4 mean found virus in this batch
+        //         iResult = send(ClientSocket, "4", 1, 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         }
+
+        //         char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
+        //         long long virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+
+        //         iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(long long), 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         }
+
+        //         iResult = send(ClientSocket, virus_found_file_paths_string, virus_found_file_paths_string_length, 0);
+        //         if (iResult == SOCKET_ERROR) {
+        //             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //         }
+
+        //         cJSON_free(virus_found_file_paths_string);
+        //     }
+        // }
+
+        // if (IsAnyHashFailed){
+        //     cJSON *check_hash_failed_file_element = check_hash_failed_files_list->child;
+        //     while (check_hash_failed_file_element != NULL) {
+        //         cJSON *check_hash_failed_file_item = cJSON_GetObjectItemCaseSensitive(check_hash_failed_file_element, "file_path");
+        //         if (cJSON_IsString(check_hash_failed_file_item) && (check_hash_failed_file_item->valuestring != NULL)){
+        //             cJSON_AddStringToObject(current_scan_progress, "current_scanning_file", check_hash_failed_file_item->valuestring);
+        //             cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", total_scanned_files);
+        //             cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", total_viruses_found);
+
+        //             char* current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+        //             long long current_scan_progress_string_length = strlen(current_scan_progress_string);
+
+        //             iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+        //             if (iResult == SOCKET_ERROR) {
+        //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 IsStopScanning = 1;
+        //                 cJSON_free(current_scan_progress_string);
+        //                 break;
+        //             }
+                    
+        //             iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(long long), 0);
+        //             if (iResult == SOCKET_ERROR) {
+        //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 IsStopScanning = 1;
+        //                 cJSON_free(current_scan_progress_string);
+        //                 break;
+        //             }
+
+        //             iResult = send(ClientSocket, current_scan_progress_string, current_scan_progress_string_length, 0);
+        //             if (iResult == SOCKET_ERROR) {
+        //                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 IsStopScanning = 1;
+        //                 cJSON_free(current_scan_progress_string);
+        //                 break;
+        //             }
+
+        //             cJSON_free(current_scan_progress_string);
+        //             cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
+        //             cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
+        //             cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");
+                
+        //             int IsScanHashFailed = 0;
+        //             IsVirusFoundInThisBatch = 0;
+
+        //             wchar_t check_hash_failed_file_item_widechar_string[MAX_PATH_LENGTH];
+        //             MultiByteToWideChar(CP_UTF8, 0, check_hash_failed_file_item->valuestring, -1, check_hash_failed_file_item_widechar_string, MAX_PATH_LENGTH);
+
+        //             // start scanning
+        //             wcscpy(check_hash_thread_data[0].file_path_input, check_hash_failed_file_item_widechar_string);
+        //             hThreads[0] = CreateThread(
+        //                 NULL,
+        //                 0,
+        //                 check_hash_thread,
+        //                 &check_hash_thread_data,
+        //                 0,
+        //                 &ThreadIds[0]
+        //             );
+
+        //             WaitForSingleObject(hThreads[0], INFINITE);
+
+        //             GetExitCodeThread(hThreads[0], &exit_code);
+                    
+        //             if ((int)exit_code == 1){ // add file to check_hash_failed_files_list if check hash failed
+        //                 IsScanHashFailed = 1;
+        //                 goto send_scan_result_to_gui_leftover;
+        //             }else{ // if not add to hash string list to send to server for analysis
+        //                 if (strlen(check_hash_thread_data[0].hash_string_output) == SHA256_HASH_STRING_LEN){ // make sure each hash in array are exactly 64 characters long before send
+        //                     cJSON* hash_string_object = cJSON_CreateObject();
+        //                     cJSON_AddStringToObject(hash_string_object, "hash_str",check_hash_thread_data[0].hash_string_output);
+        //                     cJSON_AddItemToArray(hash_string_list, hash_string_object);
+        //                 } else{
+        //                     IsScanHashFailed = 1;
+        //                     goto send_scan_result_to_gui_leftover;
+        //                 }
+
+        //             }
+
+        //             char* json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
+        //             long long length = strlen(json_string_to_send);
+
+        //             while (1){
+        //                 iResult = send(ServerSocket, (const char*)&length, sizeof(long long), 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                     IsScanHashFailed = 1;
+        //                     break;
+        //                 }
+
+        //                 iResult = send(ServerSocket, json_string_to_send, length, 0); // Sử dụng độ dài được truyền vào
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                     IsScanHashFailed = 1;
+        //                     break;
+        //                 }
+
+        //                 size_t array_len;
+        //                 iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+        //                 char recvbuf[array_len];
+        //                 iResult = recv(ServerSocket, recvbuf, array_len, 0);
+        //                 if (iResult > 0) {
+        //                     // PHÂN TÍCH JSON PHẢN HỒI
+        //                     server_scan_result = cJSON_Parse(recvbuf);
+        //                     if (!server_scan_result) {
+        //                         const char* error_ptr = cJSON_GetErrorPtr();
+        //                         if (error_ptr != NULL) {
+        //                             fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+        //                         } else {
+        //                             fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+        //                         }
+        //                         IsScanHashFailed = 1;
+        //                     }
+        //                 } else{
+        //                     IsScanHashFailed = 1;
+        //                 }
+
+        //                 break;
+        //             }
+
+        //             cJSON_free(json_string_to_send);
+
+        //             // process server scan result
+        //             int server_scan_result_array_element_index = 0;
+        //             cJSON* server_scan_result_element = NULL;
+        //             cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
+        //                 cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
+        //                 if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+        //                     cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+        //                     cJSON* virus_found_file_object = cJSON_CreateObject();
+        //                     AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_array_element_index]);
+        //                     cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+        //                     cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+        //                     total_viruses_found += 1;
+        //                     IsVirusFoundInThisBatch = 1;
+        //                 }
+        //                 server_scan_result_array_element_index += 1;
+        //             }
+
+        //             cJSON_Delete(server_scan_result);
+
+        //             if (IsVirusFoundInThisBatch == 1){
+        //                 // send code 4 mean found virus in this batch
+        //                 iResult = send(ClientSocket, "4", 1, 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+
+        //                 char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
+        //                 long long virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+
+        //                 iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(long long), 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+
+        //                 iResult = send(ClientSocket, virus_found_file_paths_string, virus_found_file_paths_string_length, 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+
+        //                 cJSON_free(virus_found_file_paths_string);
+        //             }
+
+        //             send_scan_result_to_gui_leftover:
+        //             if (IsScanHashFailed == 1){
+        //                 // send code 5 mean file failed to scan
+        //                 iResult = send(ClientSocket, "5", 1, 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+
+        //                 char *check_hash_failed_file_element_string = cJSON_PrintUnformatted(check_hash_failed_file_element);
+        //                 long long check_hash_failed_file_element_string_length = strlen(check_hash_failed_file_element_string);
+
+        //                 iResult = send(ClientSocket, check_hash_failed_file_element_string, check_hash_failed_file_element_string_length, 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+
+        //                 iResult = recv(ClientSocket, &file_scan_error_should_rescan_or_skip_or_cancel_respone_code, 1, 0);
+        //                 if (iResult == SOCKET_ERROR) {
+        //                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //                 }
+                        
+        //                 if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '1'){
+        //                     cJSON_free(check_hash_failed_file_element_string);
+        //                     continue;
+        //                 }else if (file_scan_error_should_rescan_or_skip_or_cancel_respone_code == '3'){
+        //                     cJSON_free(check_hash_failed_file_element_string);
+        //                     IsStopScanning = 1;
+        //                     break;
+        //                 }else{
+        //                     cJSON_free(check_hash_failed_file_element_string);
+        //                 }
+
+        //             }else{
+        //                 total_scanned_files++;
+        //             }
+
+        //             CloseHandle(hThreads[0]);
+        //         }
+        //         check_hash_failed_file_element = check_hash_failed_file_element->next;
+        //     }
+        // }
+
+        // // reset file path queue
+        // memset(file_path_queue, 0, sizeof(file_path_queue));
+        // memset(success_file_scanned, 0, sizeof(success_file_scanned));
+        // total_file_path_in_queue = 0;
+        // IsVirusFoundInThisBatch = 0;
+        // IsAnyHashFailed = 0;
+
+        // // send code 1 mean should continue scanning or stop scanning from GUI client
+        // iResult = send(ClientSocket, "1", 1, 0);
+        // if (iResult == SOCKET_ERROR) {
+        //     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        //     return 1;
+        // }
+
+        // iResult = recv(ClientSocket, &should_continue_scanning_respone_code, 1, 0);
+        // if (iResult == SOCKET_ERROR) {
+        //     fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+        //     return 1;
+        // }
+
+        // if (should_continue_scanning_respone_code == '1'){
+        //     IsStopScanning = 1;
+        // }

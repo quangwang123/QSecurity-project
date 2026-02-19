@@ -12,6 +12,26 @@ WORKER_STATUS_SUCCESS_SCAN = 0
 WORKER_INTERNAL_ERROR_SCAN = 1
 WORKER_STATUS_STOPPED_SCAN = 2
 
+# def get_files_in_directory_recursive(directory_path):
+#     """
+#     Duyệt qua tất cả các file trong thư mục chỉ định và các thư mục con
+#     và trả về một list các đường dẫn tuyệt đối của file.
+#     """
+#     file_paths = []
+#     try:
+#         # os.walk trả về một iterator, mỗi lần lặp là một tuple (dirpath, dirnames, filenames)
+#         for root, dirs, files in os.walk(directory_path):
+#             for file_name in files:
+#                 full_path = os.path.join(root, file_name) # Kết hợp đường dẫn thư mục hiện tại và tên file
+#                 file_paths.append(full_path)
+#     except FileNotFoundError:
+#         print(f"Lỗi: Thư mục '{directory_path}' không tồn tại.")
+#     except PermissionError:
+#         print(f"Lỗi: Không có quyền truy cập vào thư mục '{directory_path}'.")
+#     except Exception as e:
+#         print(f"Đã xảy ra lỗi: {e}")
+#     return file_paths
+
 def clear_json_file(filepath):
     with open(filepath, 'w') as f:
         f.write('')
@@ -82,19 +102,39 @@ class ScanEngineWorker(QObject):
     total_file_scanned = pyqtSignal(int)
     total_virus_detected = pyqtSignal(int)
     virus_detected_info = pyqtSignal(str)
-    scan_failed = pyqtSignal() # scan_failed means scan failed entire file batch or scan failed single file (if user use scan single file) 
+    scan_failed = pyqtSignal() # scan_failed means scan failed entire file path list or scan failed single file (if user use scan single file) 
     failed_to_scan_file = pyqtSignal(str) # file_error_request_rescan_or_skip_or_cancel means one or some file failed to scan
     failed_to_send_hash_to_server = pyqtSignal()
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
         self.file_path = file_path # Also can be folder path if user choose specified folder scan
-        self.is_scan_stop = False
+        self.scan_stop = False
         self.action_needed = False # if scan result is infected, action needed will be set to true and it will be used to display "Action needed" in GUI and also used to determine whether we need to display virus detected info in scan result or not because if action_needed == False, we will not display virus detected info because it means no virus found
         self.rescan_or_skip_or_cancel = 0 # 1: rescan, 2: skip, 3: cancel
         self.resend_hash_or_skip_or_cancel = 0 # 1: resend, 2: skip, 3: cancel
         self.default_skip = 0 # 0: not skip, 1: skip. Default skip when use choose don't ask again for rescan or skip or cancel (scan failed)
     def run_single_scan_process(self):
+        # try:
+        #     write_scan_info_data([{"file_path": self.file_path}])
+        #     engine_executable="./engine.exe"
+        #     engine = subprocess.run([engine_executable, self.file_path], 
+        #                         check=False,
+        #                         capture_output=True,
+        #                         text=True
+        #                         )
+        #     if engine.returncode == 0:
+        #         scan_result = load_json_file("scan_result.json")
+        #         status = scan_result[0]["status"]
+        #         virus_name = scan_result[0]["virus_id"]
+        #         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, status, virus_name)
+        #     else:
+        #         self.finished.emit(WORKER_INTERNAL_ERROR_SCAN,"", "")
+                
+        # except FileNotFoundError:
+        #     self.finished.emit(WORKER_INTERNAL_ERROR_SCAN, "", "")
         write_scan_info_data({"file_path": self.file_path}, IsSingleFileScan=True)
+        
+        # self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "clean", "none")
 
         try:
             engine_executable="./engine.exe"
@@ -130,13 +170,13 @@ class ScanEngineWorker(QObject):
             print(f"Đã xảy ra lỗi: {e}")
             self.finished.emit(WORKER_INTERNAL_ERROR_SCAN,"", "")
     def run_quick_scan_process(self):
-        if self.is_scan_stop == False:
+        if self.scan_stop == False:
             self.scan_folder("C:\\Users", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
+        if self.scan_stop == False:
             self.scan_folder("C:\\Program Files", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
+        if self.scan_stop == False:
             self.scan_folder("C:\\Program Files (x86)", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
+        if self.scan_stop == False:
             self.scan_folder("C:\\ProgramData", IsSpecifiedFolderScan=False)
         
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
@@ -146,7 +186,7 @@ class ScanEngineWorker(QObject):
     def full_scan_process(self):
         total_drives = len(self.file_path)
         for i in range (total_drives):
-            if self.is_scan_stop == False:
+            if self.scan_stop == False:
                 self.scan_folder(self.file_path[i], IsSpecifiedFolderScan=False)
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
     @pyqtSlot()
@@ -184,7 +224,7 @@ class ScanEngineWorker(QObject):
                 s.connect((SERVER_IP, SERVER_PORT))
                 while 1:
                     if QThread.currentThread().isInterruptionRequested():
-                        self.is_scan_stop = True
+                        self.scan_stop = True
                     
                     recieve_code = s.recv(1).decode('ascii')
                     print(f"Recieve code: {recieve_code}")
@@ -200,7 +240,7 @@ class ScanEngineWorker(QObject):
                         self.total_file_scanned.emit(current_scan_progress["total_scanned_files"])
                         self.total_virus_detected.emit(current_scan_progress["total_viruses_found"])
                     elif recieve_code == '1':
-                        if self.is_scan_stop == False:
+                        if self.scan_stop == False:
                             s.send("0".encode('ascii'))
                         else:
                             s.send("1".encode('ascii'))
@@ -279,3 +319,213 @@ class ScanEngineWorker(QObject):
             self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
         except FileNotFoundError:
             print("Lỗi: Không tìm thấy file engine.exe.")
+    def scan_folder1(self, folder_path):
+        # prepare for scanning
+        total_file_added_to_queue = 0
+        file_path_list = []
+        if self.scan_stop == False: #dont clear json file and dont set total_file_scanned and total_virus_detected to 0 after self.scan_stop == True
+            clear_json_file("virus_detected_list.json") #clear virus_detected_list.json before scan
+            self.total_file_scanned_temporary = 0 #temporary variable
+            self.total_virus_detected_temporary = 0 #temporary variable
+
+        # prepared done, start scanning
+        # os.walk trả về một iterator, mỗi lần lặp là một tuple (dirpath, dirnames, filenames)
+        for root, dirs, files in os.walk(folder_path):
+            for file_name in files:
+                file_path = os.path.join(root, file_name) # Kết hợp đường dẫn thư mục hiện tại và tên file
+                file_path_list.append({"file_path": file_path})
+                total_file_added_to_queue += 1
+                if total_file_added_to_queue == 20:
+                    total_file_added_to_queue = 0
+                    while True:
+                        self.current_scanning_path.emit(file_path_list[len(file_path_list)-1]["file_path"])
+                        self.rescan_or_skip_or_cancel = 0
+                        if QThread.currentThread().isInterruptionRequested():
+                            self.scan_stop = True
+                        if self.scan_stop == True:
+                            self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                            return 
+                        write_scan_info_data(file_path_list)
+                        engine_executable="./engine.exe"
+                        engine = subprocess.run([engine_executable], 
+                                                check=False,
+                                                capture_output=True,
+                                                text=True
+                                                )
+
+                        if engine.returncode == 0 or engine.returncode == 2:
+                            scan_result_list = load_json_file("scan_result.json")
+                            self.total_file_scanned_temporary += len(scan_result_list)
+                            self.total_file_scanned.emit(self.total_file_scanned_temporary)
+                            for file_path in load_json_file("scan_failed_files.json"):
+                                if file_path in file_path_list:
+                                    file_path_list.remove(file_path)
+                            for i in range(len(scan_result_list)):
+                                status = scan_result_list[i]["status"]
+                                if status == "infected":
+                                    self.total_virus_detected_temporary += 1
+                                    self.total_virus_detected.emit(self.total_virus_detected_temporary)
+                                    virus_name = scan_result_list[i]["virus_id"]
+                                    self.virus_detected_info.emit(f"File path: {file_path_list[i]["file_path"]} - Virus name: {virus_name}")
+                                    self.action_needed = True
+                                    write_log_data({"file_path": file_path_list[i]["file_path"], "virus_name": virus_name})
+                                    write_virus_detected_data({"file_path": file_path_list[i]["file_path"]})
+                            if engine.returncode == 2 and self.default_skip == 0:
+                                scan_failed_files = load_json_file("scan_failed_files.json")
+                                for i in range(len(scan_failed_files)):
+                                    if self.default_skip == 1:
+                                        break
+                                    self.rescan_or_skip_or_cancel = 0
+                                    self.current_scanning_path.emit(scan_failed_files[i]["file_path"])
+                                    self.file_error_request_rescan_or_skip_or_cancel.emit(scan_failed_files[i]["file_path"])
+                                    while self.rescan_or_skip_or_cancel == 0:
+                                        continue
+                                    if self.rescan_or_skip_or_cancel == 2:
+                                        pass #stop scan current file if user choose skip and scan next file, use pass instead break because break will break out of for loop
+                                    elif self.rescan_or_skip_or_cancel == 3:
+                                        self.scan_stop = True
+                                        self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                                        return
+                                    elif self.rescan_or_skip_or_cancel == 1:                                  
+                                        while True:
+                                            self.rescan_or_skip_or_cancel = 0 #reset because it already has value from the last loop
+                                            if QThread.currentThread().isInterruptionRequested():
+                                                self.scan_stop = True
+                                            if self.scan_stop == True:
+                                                self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                                                return 
+                                            write_scan_info_data([{"file_path": scan_failed_files[i]["file_path"]}])
+                                            engine_executable="./engine.exe"
+                                            engine = subprocess.run([engine_executable], 
+                                                                    check=False,
+                                                                    capture_output=True,
+                                                                    text=True
+                                                                    )
+                                            if engine.returncode == 0:
+                                                scan_result_list = load_json_file("scan_result.json")
+                                                self.total_file_scanned_temporary += len(scan_result_list)
+                                                self.total_file_scanned.emit(self.total_file_scanned_temporary)
+                                                status = scan_result_list[0]["status"] #set to 0 because we only have 1 file to scan
+                                                if status == "infected":
+                                                    self.total_virus_detected_temporary += 1
+                                                    self.total_virus_detected.emit(self.total_virus_detected_temporary)
+                                                    virus_name = scan_result_list[0]["virus_id"]
+                                                    self.virus_detected_info.emit(f"File path: {scan_failed_files[0]["file_path"]} - Virus name: {virus_name}")
+                                                    self.action_needed = True
+                                                    write_log_data({"file_path": scan_failed_files[0]["file_path"], "virus_name": virus_name})
+                                                    write_virus_detected_data({"file_path": scan_failed_files[0]["file_path"]})
+                                            
+                                            else:
+                                                self.file_error_request_rescan_or_skip_or_cancel.emit(scan_failed_files[i]["file_path"])
+                                                while self.rescan_or_skip_or_cancel == 0:
+                                                    continue
+                                                if self.rescan_or_skip_or_cancel == 2:
+                                                    break #stop scan current file if user choose skip and scan next file
+                                                continue #rescan the file or stop the scan if user choose cancel because QThread.currentThread().isInterruptionRequested() will set self.scan_stop = True
+                                            break
+                        elif engine.returncode == 1:
+                            self.scan_failed.emit()
+                            while self.rescan_or_skip_or_cancel == 0:
+                                continue
+                            if self.rescan_or_skip_or_cancel == 2:
+                                    break #stop scan current file if user choose skip and scan next file
+                            continue #rescan the file or stop the scan if user choose cancel because QThread.currentThread().isInterruptionRequested() will set self.scan_stop = True
+                        file_path_list.clear() #clear file_path_list
+                        break
+                            #self.finished.emit(WORKER_INTERNAL_ERROR_SCAN, "during_scan", file_path)
+        #check for leftover files in file_path_list
+        if len(file_path_list) > 0:
+            self.current_scanning_path.emit(file_path_list[len(file_path_list)-1]["file_path"])
+            while True:
+                self.rescan_or_skip_or_cancel = 0
+                if QThread.currentThread().isInterruptionRequested():
+                    self.scan_stop = True
+                if self.scan_stop == True:
+                    self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                    return 
+                write_scan_info_data(file_path_list)
+                engine_executable="./engine.exe"
+                engine = subprocess.run([engine_executable], 
+                                        check=False,
+                                        capture_output=True,
+                                        text=True
+                                        )
+                if engine.returncode == 0 or engine.returncode == 2:
+                    scan_result_list = load_json_file("scan_result.json")
+                    self.total_file_scanned_temporary += len(scan_result_list)
+                    self.total_file_scanned.emit(self.total_file_scanned_temporary)
+                    for file_path in load_json_file("scan_failed_files.json"):
+                        if file_path in file_path_list:
+                            file_path_list.remove(file_path)
+                    for i in range(len(scan_result_list)):
+                        status = scan_result_list[i]["status"]
+                        if status == "infected":
+                            self.total_virus_detected_temporary += 1
+                            self.total_virus_detected.emit(self.total_virus_detected_temporary)
+                            virus_name = scan_result_list[i]["virus_id"]
+                            self.virus_detected_info.emit(f"File path: {file_path_list[i]["file_path"]} - Virus name: {virus_name}")
+                            self.action_needed = True
+                            write_log_data({"file_path": file_path_list[i]["file_path"], "virus_name": virus_name})
+                            write_virus_detected_data({"file_path": file_path_list[i]["file_path"]})
+                    if engine.returncode == 2 and self.default_skip == 0:
+                        scan_failed_files = load_json_file("scan_failed_files.json")
+                        for i in range(len(scan_failed_files)):
+                            if self.default_skip == 1:
+                                break
+                            self.rescan_or_skip_or_cancel = 0
+                            self.current_scanning_path.emit(scan_failed_files[i]["file_path"])
+                            self.file_error_request_rescan_or_skip_or_cancel.emit(scan_failed_files[i]["file_path"])
+                            while self.rescan_or_skip_or_cancel == 0:
+                                continue
+                            if self.rescan_or_skip_or_cancel == 2:
+                                pass #stop scan current file if user choose skip and scan next file, use pass instead break because break will break out of for loop
+                            elif self.rescan_or_skip_or_cancel == 3:
+                                self.scan_stop = True
+                                self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                                return
+                            elif self.rescan_or_skip_or_cancel == 1:                                     
+                                while True:
+                                    self.rescan_or_skip_or_cancel = 0 #reset
+                                    if QThread.currentThread().isInterruptionRequested():
+                                        self.scan_stop = True
+                                    if self.scan_stop == True:
+                                        self.finished.emit(WORKER_STATUS_STOPPED_SCAN, "", str(self.action_needed))
+                                        return 
+                                    write_scan_info_data([{"file_path": scan_failed_files[i]["file_path"]}])
+                                    engine_executable="./engine.exe"
+                                    engine = subprocess.run([engine_executable], 
+                                                            check=False,
+                                                            capture_output=True,
+                                                            text=True
+                                                            )
+                                    if engine.returncode == 0:
+                                        scan_result_list = load_json_file("scan_result.json")
+                                        self.total_file_scanned_temporary += len(scan_result_list)
+                                        self.total_file_scanned.emit(self.total_file_scanned_temporary)
+                                        status = scan_result_list[0]["status"] #set to 0 because we only have 1 file to scan
+                                        if status == "infected":
+                                            self.total_virus_detected_temporary += 1
+                                            self.total_virus_detected.emit(self.total_virus_detected_temporary)
+                                            virus_name = scan_result_list[0]["virus_id"]
+                                            self.virus_detected_info.emit(f"File path: {scan_failed_files[0]["file_path"]} - Virus name: {virus_name}")
+                                            self.action_needed = True
+                                            write_log_data({"file_path": scan_failed_files[0]["file_path"], "virus_name": virus_name})
+                                            write_virus_detected_data({"file_path": scan_failed_files[0]["file_path"]})
+                                                
+                                    else:
+                                        self.file_error_request_rescan_or_skip_or_cancel.emit(scan_failed_files[i]["file_path"])
+                                        while self.rescan_or_skip_or_cancel == 0:
+                                            continue
+                                        if self.rescan_or_skip_or_cancel == 2:
+                                            break #stop scan current file if user choose skip and scan next file
+                                        continue #rescan the file or stop the scan if user choose cancel because QThread.currentThread().isInterruptionRequested() will set self.scan_stop = True
+                                    break     
+                elif engine.returncode == 1:
+                    self.scan_failed.emit()
+                    while self.rescan_or_skip_or_cancel == 0:
+                        continue
+                    if self.rescan_or_skip_or_cancel == 2:
+                        break #stop scan current file if user choose skip and scan next file
+                    continue #rescan the file or stop the scan if user choose cancel because QThread.currentThread().isInterruptionRequested() will set self.scan_stop = True
+                file_path_list.clear()
+                break
