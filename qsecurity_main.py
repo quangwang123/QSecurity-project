@@ -68,37 +68,12 @@ def write_log_data(json_data):
     except FileNotFoundError:
         with open("activity_log_file.json", "w", encoding='utf-8') as file:
             json.dump([json_data], file, ensure_ascii=False, indent=4)
-    
-# def calculate_sha256_python(file_path):
-#     """Tính toán SHA256 hash của một file bằng Python."""
-#     sha256_hash = hashlib.sha256()
-#     try:
-#         with open(file_path, "rb") as f:
-#             # Đọc file theo từng khối để xử lý các file lớn
-#             for byte_block in iter(lambda: f.read(4096), b""):
-#                 sha256_hash.update(byte_block)
-#         return sha256_hash.hexdigest()
-#     except FileNotFoundError:
-#         QMessageBox.critical(None, "Lỗi", f"Tệp không tồn tại: {file_path}")
-#         return None
-#     except Exception as e:
-#         QMessageBox.critical(None, "Lỗi", f"Lỗi khi tính hash: {e}")
-#         return None
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         uic.loadUi('qsecurity_main_ui.ui',self)
         self.setWindowTitle("QSecurity")
-
-        # self.path.setPlaceholderText("Chưa có tệp nào được chọn...")
-        # self.path.setReadOnly(True)
-        # total_log = len(get_log())
-        # for i in range(total_log):
-        #     file_path = get_log()[i]["file_path"]
-        #     virus_name = get_log()[i]["virus_name"]
-        #     log = f"File path: {file_path} - Virus_name: {virus_name}"
-        #     self.log.addItem(log)
 
         self.virus_get_log_thread = QThread()
         self.worker = VirusGetLogWorker()
