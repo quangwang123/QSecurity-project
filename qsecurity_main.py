@@ -190,6 +190,11 @@ class MainWindow(QtWidgets.QMainWindow):
                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                             QMessageBox.StandardButton.Yes)
         if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self.virus_get_log_thread.requestInterruption()
+            except RuntimeError:
+                pass
+            
             clear_json_file('activity_log_file.json')
             self.log.clear()
         elif reply == QMessageBox.StandardButton.No:
