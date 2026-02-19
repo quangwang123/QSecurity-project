@@ -90,8 +90,8 @@ class ScanEngineWorker(QObject):
         self.file_path = file_path # Also can be folder path if user choose specified folder scan
         self.is_scan_stop = False
         self.action_needed = False # if scan result is infected, action needed will be set to true and it will be used to display "Action needed" in GUI and also used to determine whether we need to display virus detected info in scan result or not because if action_needed == False, we will not display virus detected info because it means no virus found
-        self.rescan_or_skip_or_cancel = 0 # 1: rescan, 2: skip, 3: cancel
-        self.resend_hash_or_skip_or_cancel = 0 # 1: resend, 2: skip, 3: cancel
+        self.failed_to_scan_file_action = 0 # 1: rescan, 2: skip, 3: cancel
+        self.failed_to_send_hash_action = 0 # 1: resend, 2: skip, 3: cancel
         self.default_skip = 0 # 0: not skip, 1: skip. Default skip when use choose don't ask again for rescan or skip or cancel (scan failed)
     def run_single_scan_process(self):
         write_scan_info_data({"file_path": self.file_path}, IsSingleFileScan=True)
@@ -151,25 +151,25 @@ class ScanEngineWorker(QObject):
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
     @pyqtSlot()
     def file_error_request_rescan(self):
-        self.rescan_or_skip_or_cancel = 1 # rescan
+        self.failed_to_scan_file_action = 1 # rescan
     @pyqtSlot()
     def file_error_request_skip(self):
-        self.rescan_or_skip_or_cancel = 2 # skip
+        self.failed_to_scan_file_action = 2 # skip
     @pyqtSlot()
     def file_error_request_cancel(self):
-        self.rescan_or_skip_or_cancel = 3 # cancel
+        self.failed_to_scan_file_action = 3 # cancel
     @pyqtSlot()
     def user_request_default_skip_file_error(self):
         self.default_skip = 1 # 0: not skip 1: skip
     @pyqtSlot()
     def send_hash_failed_request_retry(self):
-        self.resend_hash_or_skip_or_cancel = 1 # resend
+        self.failed_to_send_hash_action = 1 # resend
     @pyqtSlot()
     def send_hash_failed_request_skip(self):
-        self.resend_hash_or_skip_or_cancel = 2 # skip
+        self.failed_to_send_hash_action = 2 # skip
     @pyqtSlot()
     def send_hash_failed_cancel(self):
-        self.resend_hash_or_skip_or_cancel = 3 # cancel
+        self.failed_to_send_hash_action = 3 # cancel
 
     def scan_folder(self, folder_path, IsSpecifiedFolderScan): #In this version, all scanning logic is in engine instead GUI to improve performance and scanning speed. GUI now just for displaying scan progress and scan result only
         write_scan_info_data(folder_path, IsSingleFileScan=False)
@@ -211,15 +211,15 @@ class ScanEngineWorker(QObject):
                     elif recieve_code == '3':
                         self.failed_to_send_hash_to_server.emit()
 
-                        self.resend_hash_or_skip_or_cancel = 0
-                        while self.resend_hash_or_skip_or_cancel == 0:
+                        self.failed_to_send_hash_action = 0
+                        while self.failed_to_send_hash_action == 0:
                             continue
 
-                        if self.resend_hash_or_skip_or_cancel == 1:
+                        if self.failed_to_send_hash_action == 1:
                             s.send("1".encode('ascii'))
-                        elif self.resend_hash_or_skip_or_cancel == 2:
+                        elif self.failed_to_send_hash_action == 2:
                             s.send("2".encode('ascii'))
-                        elif self.resend_hash_or_skip_or_cancel == 3:
+                        elif self.failed_to_send_hash_action == 3:
                             s.send("3".encode('ascii'))
 
                     elif recieve_code == '4':
@@ -239,17 +239,17 @@ class ScanEngineWorker(QObject):
                         if self.default_skip == 0:
                             self.current_scanning_path.emit(check_hash_failed_file["file_path"])
                             self.failed_to_scan_file.emit(check_hash_failed_file["file_path"])
-                            self.rescan_or_skip_or_cancel = 0
-                            while self.rescan_or_skip_or_cancel == 0:
+                            self.failed_to_scan_file_action = 0
+                            while self.failed_to_scan_file_action == 0:
                                 continue
                             
                             if self.default_skip == 0:
-                                print(f"User choice for file scan error: {self.rescan_or_skip_or_cancel}")
-                                if self.rescan_or_skip_or_cancel == 1:
+                                print(f"User choice for file scan error: {self.failed_to_scan_file_action}")
+                                if self.failed_to_scan_file_action == 1:
                                     s.send("1".encode('ascii'))
-                                elif self.rescan_or_skip_or_cancel == 2:
+                                elif self.failed_to_scan_file_action == 2:
                                     s.send("2".encode('ascii'))
-                                elif self.rescan_or_skip_or_cancel == 3:
+                                elif self.failed_to_scan_file_action == 3:
                                     s.send("3".encode('ascii'))
                             else:
                                 s.send("2".encode('ascii'))
@@ -258,15 +258,15 @@ class ScanEngineWorker(QObject):
                     elif recieve_code == '6':
                         self.scan_failed.emit()
                         
-                        self.rescan_or_skip_or_cancel = 0
-                        while self.rescan_or_skip_or_cancel == 0:
+                        self.failed_to_scan_file_action = 0
+                        while self.failed_to_scan_file_action == 0:
                             continue
                             
-                        if self.rescan_or_skip_or_cancel == 1:
+                        if self.failed_to_scan_file_action == 1:
                             s.send("1".encode('ascii'))
-                        elif self.rescan_or_skip_or_cancel == 2:
+                        elif self.failed_to_scan_file_action == 2:
                             s.send("2".encode('ascii'))
-                        elif self.rescan_or_skip_or_cancel == 3:
+                        elif self.failed_to_scan_file_action == 3:
                             s.send("3".encode('ascii'))
 
         except ConnectionRefusedError:
