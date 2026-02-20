@@ -171,13 +171,9 @@ DWORD WINAPI check_hash_thread(LPVOID lpParam){
     if (CryptGetHashParam(hHash, HP_HASHVAL, hash_binary, &hashLen, 0)) {
         static const char hex_chars[] = "0123456789abcdef"; // Use lookup table for hex conversion for efficiency
         for (DWORD i = 0; i < hashLen; i++) {
-            // sprintf(&hash_str[i * 2], "%02x", hash_binary[i]);
             hash_str[i * 2] = hex_chars[hash_binary[i] >> 4 & 0x0F];
             hash_str[i * 2 + 1] = hex_chars[hash_binary[i] & 0x0F];
         }
-        // hash_str[SHA256_HASH_STRING_LEN * 2] = '\0';
-        // printf("%s", hash_str);
-        // printf("\n");
     } else {
         CryptDestroyHash(hHash);
         CryptReleaseContext(hProv, 0);
@@ -274,7 +270,6 @@ int main() {
     cJSON* hash_string_list = cJSON_CreateArray(); //create hash string list using json array
 
     SOCKET ServerSocket = initialize_connection_to_virus_scan_server();
-    // SOCKET ServerSocket;
 
     if (ServerSocket == INVALID_SOCKET){
         fprintf(stderr, "Cannot connect to virus scan server\n");
@@ -311,11 +306,6 @@ int main() {
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         return 1;
     }
-        
-    // const wchar_t *path_to_scan = L"C:\\Users\\";
-    // scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, ServerSocket);
-    // // scan_file_in_directory((wchar_t*) L"C:\\Program Files", check_hash_failed_files_list, hash_string_list, ServerSocket);
-    // // scan_file_in_directory((wchar_t*) L"C:\\Program Files (x86)", check_hash_failed_files_list, hash_string_list, ServerSocket);
 
     iResult = shutdown(ServerSocket, SD_SEND);
     if (iResult == SOCKET_ERROR) {
