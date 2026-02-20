@@ -22,7 +22,7 @@
 #define SHA256LEN 32
 #define DEFAULT_VIRUS_SCAN_SERVER_PORT "27015"
 #define SHA256_HASH_STRING_LEN 64
-#define VIRUS_SCAN_SERVER_IP "192.168.1.25"
+#define VIRUS_SCAN_SERVER_IP "YOUR VIRUS SCAN SERVER IP"
 #define ENGINE_PORT "3549"
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILE_PATH_IN_QUEUE 20
@@ -353,8 +353,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     int IsSendOrReceiveHashFailed = 0;
     int IsVirusFoundInThisBatch = 0;
     wchar_t success_file_scanned[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LENGTH];
-    // cJSON* virus_found_file_paths = cJSON_CreateArray(); // to store file paths with its virus name (if file is virus) that found virus in this batch to send to GUI client
-    // cJSON* current_scan_progress = cJSON_CreateObject(); // to store current scan progress info to send to GUI client (including current scanning file, total scanned files, total viruses found)
     char file_scan_error_action_respone_code; // 1: rescan, 2: skip, 3: cancel
     char *current_scan_progress_string = NULL;
     size_t current_scan_progress_string_length = 0;
@@ -902,21 +900,10 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
     static int total_scanned_files = 0;
     static int total_viruses_found = 0;
 
-    // HANDLE hThreads[MAX_FILE_PATH_IN_QUEUE];
-    // DWORD ThreadIds[MAX_FILE_PATH_IN_QUEUE];
-    // DWORD exit_code;
-    // CheckHashThreadData check_hash_thread_data[MAX_FILE_PATH_IN_QUEUE];
     int iResult;
-    // cJSON* server_scan_result = NULL;
-    // int IsAnyHashFailed = 0;
-    // int IsAllHashFailed = 0; // to prevent sending empty json array to server
-    // int IsSendOrReceiveHashFailed = 0;
-    // int IsVirusFoundInThisBatch = 0;
-    // wchar_t success_file_scanned[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LENGTH];
     cJSON* virus_found_file_paths = cJSON_CreateArray(); // to store file paths with its virus name (if file is virus) that found virus in this batch to send to GUI client
     cJSON* current_scan_progress = cJSON_CreateObject(); // to store current scan progress info to send to GUI client (including current scanning file, total scanned files, total viruses found)
     char should_continue_scanning_respone_code; // 0: continue scanning, 1: stop scanning
-    // char file_scan_error_should_rescan_or_skip_or_cancel_respone_code; // 1: rescan, 2: skip, 3: cancel
 
     do {
         // Bỏ qua thư mục hiện tại "." và thư mục cha ".."
