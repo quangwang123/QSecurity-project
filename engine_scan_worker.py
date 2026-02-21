@@ -28,9 +28,9 @@ def write_scan_info_data(file_path, IsSingleFileScan=False):
         if IsSingleFileScan:
             file_path = {"file_path": file_path}
         else:
-            file_path = {"folder_path": file_path}
+            file_path = {"folder_path_list": [file_path]}
     elif isinstance(file_path, list):
-        file_path = {"file_list": file_path}
+        file_path = {"folder_path_list": file_path}
     elif not isinstance(file_path, dict):
         # Fallback: wrap whatever was passed into a dict to avoid TypeError
         file_path = {"data": file_path}
@@ -130,24 +130,13 @@ class ScanEngineWorker(QObject):
             print(f"Đã xảy ra lỗi: {e}")
             self.finished.emit(WORKER_INTERNAL_ERROR_SCAN,"", "")
     def run_quick_scan_process(self):
-        if self.is_scan_stop == False:
-            self.scan_folder("C:\\Users", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
-            self.scan_folder("C:\\Program Files", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
-            self.scan_folder("C:\\Program Files (x86)", IsSpecifiedFolderScan=False)
-        if self.is_scan_stop == False:
-            self.scan_folder("C:\\ProgramData", IsSpecifiedFolderScan=False)
-        
+        self.scan_folder(["C:\\Users", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData"], IsSpecifiedFolderScan=False)
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
     def run_specified_folder_scan_process(self): # also used for full scan
         self.scan_folder(self.file_path, IsSpecifiedFolderScan=True)
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
     def full_scan_process(self):
-        total_drives = len(self.file_path)
-        for i in range (total_drives):
-            if self.is_scan_stop == False:
-                self.scan_folder(self.file_path[i], IsSpecifiedFolderScan=False)
+        self.scan_folder(self.file_path, IsSpecifiedFolderScan=False)
         self.finished.emit(WORKER_STATUS_SUCCESS_SCAN, "", str(self.action_needed))
     @pyqtSlot()
     def file_error_request_rescan(self):
