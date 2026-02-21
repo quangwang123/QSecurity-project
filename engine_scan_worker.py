@@ -20,25 +20,25 @@ def load_json_file(filename):
     with open(filename, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def write_scan_info_data(json_data, IsSingleFileScan=False):
+def write_scan_info_data(file_path, IsSingleFileScan=False):
     # If caller passed a simple path string, convert it into a dict so we can
     # set items like `scan_type` safely. Also wrap lists into a dict so the
     # output file is always a JSON object (consistent with readers).
-    if isinstance(json_data, str):
+    if isinstance(file_path, str):
         if IsSingleFileScan:
-            json_data = {"file_path": json_data}
+            file_path = {"file_path": file_path}
         else:
-            json_data = {"folder_path": json_data}
-    elif isinstance(json_data, list):
-        json_data = {"file_list": json_data}
-    elif not isinstance(json_data, dict):
+            file_path = {"folder_path": file_path}
+    elif isinstance(file_path, list):
+        file_path = {"file_list": file_path}
+    elif not isinstance(file_path, dict):
         # Fallback: wrap whatever was passed into a dict to avoid TypeError
-        json_data = {"data": json_data}
+        file_path = {"data": file_path}
 
     # Mở file với encoding='utf-8' và đảm bảo non-ASCII được hiển thị đúng
     with open("scan_info.json", "w", encoding='utf-8') as file:
-        json_data["scan_type"] = "singlefilescan" if IsSingleFileScan else "folderscan"
-        json.dump(json_data, file, ensure_ascii=False, indent=4) # indent=4 để dễ đọc hơn
+        file_path["scan_type"] = "singlefilescan" if IsSingleFileScan else "folderscan"
+        json.dump(file_path, file, ensure_ascii=False, indent=4) # indent=4 để dễ đọc hơn
         
 def write_virus_detected_data(new_data): #for removal process
     # Nếu file tồn tại → đọc dữ liệu cũ
