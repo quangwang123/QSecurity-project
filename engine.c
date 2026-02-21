@@ -22,7 +22,7 @@
 #define SHA256LEN 32
 #define DEFAULT_VIRUS_SCAN_SERVER_PORT "27015"
 #define SHA256_HASH_STRING_LEN 64
-#define VIRUS_SCAN_SERVER_IP "192.168.1.12"
+#define VIRUS_SCAN_SERVER_IP "YOUR VIRUS SCAN SERVER IP"
 #define ENGINE_PORT "3549"
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILE_PATH_IN_QUEUE 20
@@ -551,7 +551,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
     if (!IsSendOrReceiveHashFailed && !IsAllHashFailed && server_scan_result){
         // process server scan result
-        int server_scan_result_element_array_element_index = 0;
         cJSON* server_scan_result_element = NULL;
         cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
             cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
@@ -572,7 +571,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 *total_viruses_found += 1;
                 IsVirusFoundInThisBatch = 1;
             }
-            server_scan_result_element_array_element_index += 1;
         }
 
         cJSON_Delete(server_scan_result);
