@@ -292,14 +292,6 @@ int main() {
                 fwprintf(stdout, L"Single file scan finished: %ls\n", path_to_scan);
             }
         } else{
-            // cJSON* file_path_item = cJSON_GetObjectItemCaseSensitive(scan_info_json, "folder_path");
-            // if (cJSON_IsString(file_path_item) && (file_path_item->valuestring != NULL)) {
-            //     //scan directory
-            //     wchar_t path_to_scan[MAX_PATH_LENGTH];
-            //     MultiByteToWideChar(CP_UTF8, 0, file_path_item->valuestring, -1, path_to_scan, MAX_PATH_LENGTH);
-            //     scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, ServerSocket, ClientSocket);
-            // }
-            
             cJSON *folder_path_list = cJSON_GetObjectItemCaseSensitive(scan_info_json, "folder_path_list");
             if (cJSON_IsArray(folder_path_list) && (folder_path_list->child != NULL)){
                 cJSON *folder_path_element = NULL;
