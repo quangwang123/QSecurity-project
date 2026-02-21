@@ -560,7 +560,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON* virus_found_file_object = cJSON_CreateObject();
 
                 cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                for (int i = 0; i < *total_scanned_files; i++){
+                for (int i = 0; i < total_file_path_in_queue; i++){
                     if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
                         AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
                         break;
@@ -750,7 +750,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         cJSON* virus_found_file_object = cJSON_CreateObject();
 
                         cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                        for (int i = 0; i < *total_scanned_files; i++){
+                        for (int i = 0; i < total_file_path_in_queue; i++){
                             if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
                                 AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
                                 break;
