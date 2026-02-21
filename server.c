@@ -370,6 +370,10 @@ int handle_client_connection(SOCKET client_socket, sqlite3 *db) {
                             cJSON_AddStringToObject(check_hash_in_database_result_object, "status", "clean");
                             cJSON_AddStringToObject(check_hash_in_database_result_object, "virus_id", "none");
                         }else{
+                            received_hash_element = cJSON_GetArrayItem(received_hash_array, i);
+                            cJSON* received_hash_item = cJSON_GetObjectItemCaseSensitive(received_hash_element, "hash_str");
+                            
+                            cJSON_AddStringToObject(check_hash_in_database_result_object, "hash_str", received_hash_item->valuestring);
                             cJSON_AddStringToObject(check_hash_in_database_result_object, "status", "infected");
                             cJSON_AddStringToObject(check_hash_in_database_result_object, "virus_id", check_hash_in_database_thread_data[i].virus_id_result_out);
                         }

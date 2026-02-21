@@ -22,7 +22,7 @@
 #define SHA256LEN 32
 #define DEFAULT_VIRUS_SCAN_SERVER_PORT "27015"
 #define SHA256_HASH_STRING_LEN 64
-#define VIRUS_SCAN_SERVER_IP "YOUR VIRUS SCAN SERVER IP"
+#define VIRUS_SCAN_SERVER_IP "192.168.1.12"
 #define ENGINE_PORT "3549"
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILE_PATH_IN_QUEUE 20
@@ -345,7 +345,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     int IsAllHashFailed = 0; // to prevent sending empty json array to server
     int IsSendOrReceiveHashFailed = 0;
     int IsVirusFoundInThisBatch = 0;
-    wchar_t success_file_scanned[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LENGTH];
     char file_scan_error_action_respone_code; // 1: rescan, 2: skip, 3: cancel
     char *current_scan_progress_string = NULL;
     size_t current_scan_progress_string_length = 0;
@@ -414,7 +413,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON* hash_string_object = cJSON_CreateObject();
                 cJSON_AddStringToObject(hash_string_object, "hash_str", check_hash_thread_data[i].hash_string_output);
                 cJSON_AddItemToArray(hash_string_list, hash_string_object);
-                wcscpy(success_file_scanned[i], check_hash_thread_data[i].file_path_input); //FIX ME: Some elements in success_file_scanned can be empty, need to fix it
                 *total_scanned_files += 1;
             } else{
                 cJSON* check_hash_failed_file_object = cJSON_CreateObject();
@@ -559,9 +557,17 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
             if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
                 cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
                 cJSON* virus_found_file_object = cJSON_CreateObject();
-                AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_element_array_element_index]);
+
                 cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                for (int i = 0; i < *total_scanned_files; i++){
+                    if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                        break;
+                    }
+                }
+
                 cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
                 *total_viruses_found += 1;
                 IsVirusFoundInThisBatch = 1;
@@ -742,9 +748,17 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
                     if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
                         cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                        cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
                         cJSON* virus_found_file_object = cJSON_CreateObject();
-                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", success_file_scanned[server_scan_result_array_element_index]);
+
                         cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                        for (int i = 0; i < *total_scanned_files; i++){
+                            if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                                AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                break;
+                            }
+                        }
+
                         cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
                         *total_viruses_found += 1;
                         IsVirusFoundInThisBatch = 1;
