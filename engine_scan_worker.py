@@ -5,6 +5,8 @@ import subprocess
 import os
 import socket
 import struct
+import asyncio
+import aiofiles
 
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 3549
@@ -61,20 +63,25 @@ def write_virus_detected_data(new_data): #for removal process
     with open(f"virus_detected_list.json", 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-def write_log_data(json_data):
+async def write_log_data(json_data):
     try:
-        with open("activity_log_file.json", "r+", encoding='utf-8') as file:
-            existing_data = json.load(file)
+        file_path = "activity_log_file.json"
+
+        async with aiofiles.open(file_path, mode="r+", encoding='utf-8') as file:
+            content = await file.read()
+
+            existing_data = json.loads(content) if content else []
             existing_data.append(json_data)
-            file.seek(0)
-            json.dump(existing_data, file, ensure_ascii=False, indent=4)
-            file.truncate()
-    except json.JSONDecodeError:
-        with open("activity_log_file.json", "w", encoding='utf-8') as file:
-            json.dump([json_data], file, ensure_ascii=False, indent=4)
-    except FileNotFoundError:
-        with open("activity_log_file.json", "w", encoding='utf-8') as file:
-            json.dump([json_data], file, ensure_ascii=False, indent=4)
+
+            await file.seek(0)
+            new_content = json.dumps(existing_data, ensure_ascii=False, indent=4)
+            await file.write(new_content)
+
+            await file.truncate()
+    except (json.JSONDecodeError, FileNotFoundError):
+        async with aiofiles.open(file_path, mode="r+", encoding="utf-8") as file:
+            new_content = json.dumps([json_data], ensure_ascii=False, indent=4)
+            await file.write(new_content)
 
 class ScanEngineWorker(QObject):
     finished = pyqtSignal(int, str, str)
@@ -221,7 +228,7 @@ class ScanEngineWorker(QObject):
                             virus_name = virus_found_file_path["virus_name"]
                             self.virus_detected_info.emit(f"File path: {virus_found_file_path["file_path"]} - Virus name: {virus_name}")
                             self.action_needed = True
-                            write_log_data({"file_path": virus_found_file_path["file_path"], "virus_name": virus_name})
+                            asyncio.run(write_log_data({"file_path": virus_found_file_path["file_path"], "virus_name": virus_name}))
                             write_virus_detected_data({"file_path": virus_found_file_path["file_path"]})
                     elif recieve_code == '5':
                         check_hash_failed_file = json.loads(s.recv(1041).decode('ascii'))
