@@ -265,7 +265,7 @@ class ScanWindow(QtWidgets.QMainWindow):
         reply = msg_box.exec()
 
         if checkbox.isChecked():
-            self.worker.user_request_default_skip_file_error()
+            self.worker.file_error_default_skip()
         if reply == QMessageBox.StandardButton.Retry:
             self.worker.file_error_request_rescan()
         elif reply == QMessageBox.StandardButton.Ignore:

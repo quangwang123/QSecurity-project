@@ -155,7 +155,7 @@ class ScanEngineWorker(QObject):
     def file_error_request_cancel(self):
         self.failed_to_scan_file_action = 3 # cancel
     @pyqtSlot()
-    def user_request_default_skip_file_error(self):
+    def file_error_default_skip(self):
         self.default_skip = 1 # 0: not skip 1: skip
     @pyqtSlot()
     def send_hash_failed_request_retry(self):
