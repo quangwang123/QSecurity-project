@@ -90,7 +90,7 @@ class ScanEngineWorker(QObject):
     total_virus_detected = pyqtSignal(int)
     virus_detected_info = pyqtSignal(str)
     scan_failed = pyqtSignal() # scan_failed means scan failed entire file batch or scan failed single file (if user use scan single file) 
-    failed_to_scan_file = pyqtSignal(str) # file_error_request_rescan_or_skip_or_cancel means one or some file failed to scan
+    failed_to_scan_file = pyqtSignal(str) # failed_to_scan_file means one or some file failed to scan
     failed_to_send_hash_to_server = pyqtSignal()
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
