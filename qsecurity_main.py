@@ -1,6 +1,5 @@
 from PyQt6 import QtWidgets
-from PyQt6.QtWidgets import QMessageBox, QWidget, QSystemTrayIcon, QMenu, QApplication, QLabel, QListWidget, QToolButton, QFileDialog, QCheckBox
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtWidgets import QMessageBox, QWidget, QApplication, QLabel, QListWidget, QToolButton, QFileDialog, QCheckBox
 from PyQt6 import uic
 import sys
 import json
@@ -76,27 +75,6 @@ class MainWindow(QtWidgets.QMainWindow):
         uic.loadUi('qsecurity_main_ui.ui',self)
         self.setWindowTitle("QSecurity")
 
-        self.tray_icon = QSystemTrayIcon(self)
-
-        self.tray_icon.setIcon(QIcon("icon.png"))
-
-        tray_menu = QMenu()
-
-        show_action = QAction("Hiện ứng dụng", self)
-        show_action.triggered.connect(self.showNormal)
-
-        quit_action = QAction("Thoát hoàn toàn", self)
-        quit_action.triggered.connect(QApplication.instance().quit)
-        
-        tray_menu.addAction(show_action)
-        tray_menu.addSeparator()
-        tray_menu.addAction(quit_action)
-
-        self.tray_icon.setContextMenu(tray_menu)
-        self.tray_icon.show()
-
-        self.tray_icon.activated.connect(self.on_tray_icon_activated)
-
         self.virus_get_log_thread = QThread()
         self.worker = VirusGetLogWorker()
 
@@ -124,16 +102,6 @@ class MainWindow(QtWidgets.QMainWindow):
             Qt.WindowType.WindowCloseButtonHint | # Có nút đóng
             Qt.WindowType.WindowMinimizeButtonHint # Có nút thu nhỏ
         )
-
-    def on_tray_icon_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            self.showNormal()
-
-    def closeEvent(self, event):
-        # Override the close event to hide the window instead of closing the application
-        if self.tray_icon.isVisible():
-            self.hide()
-            event.ignore()  # Prevent the application from closing
     
     @pyqtSlot(str)
     def show_virus_detected_info(self, virus_detected_info):
@@ -682,7 +650,6 @@ class NoVirusDetectedDialog(QtWidgets.QDialog):
         self.close()
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
