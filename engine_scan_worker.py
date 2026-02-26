@@ -100,6 +100,7 @@ class ScanEngineWorker(QObject):
         self.failed_to_scan_file_action = 0 # 1: rescan, 2: skip, 3: cancel
         self.failed_to_send_hash_action = 0 # 1: resend, 2: skip, 3: cancel
         self.default_skip = 0 # 0: not skip, 1: skip. Default skip when use choose don't ask again for rescan or skip or cancel (scan failed)
+        self.default_skip_when_file_batch_error = 0
     def run_single_scan_process(self):
         write_scan_info_data({"file_path": self.file_path}, IsSingleFileScan=True)
 
@@ -166,6 +167,9 @@ class ScanEngineWorker(QObject):
     @pyqtSlot()
     def send_hash_failed_cancel(self):
         self.failed_to_send_hash_action = 3 # cancel
+    @pyqtSlot()
+    def file_batch_error_default_skip(self):
+        self.default_skip_when_file_batch_error = 1
 
     def scan_folder(self, folder_path, IsSpecifiedFolderScan): #In this version, all scanning logic is in engine instead GUI to improve performance and scanning speed. GUI now just for displaying scan progress and scan result only
         write_scan_info_data(folder_path, IsSingleFileScan=False)
@@ -252,18 +256,24 @@ class ScanEngineWorker(QObject):
                         else:
                             s.send("2".encode('ascii'))
                     elif recieve_code == '6':
-                        self.scan_failed.emit()
-                        
-                        self.failed_to_scan_file_action = 0
-                        while self.failed_to_scan_file_action == 0:
-                            continue
+                        if self.default_skip_when_file_batch_error == 0:
+                            self.scan_failed.emit()
                             
-                        if self.failed_to_scan_file_action == 1:
-                            s.send("1".encode('ascii'))
-                        elif self.failed_to_scan_file_action == 2:
+                            self.failed_to_scan_file_action = 0
+                            while self.failed_to_scan_file_action == 0:
+                                continue
+
+                            if self.default_skip_when_file_batch_error == 0: 
+                                if self.failed_to_scan_file_action == 1:
+                                    s.send("1".encode('ascii'))
+                                elif self.failed_to_scan_file_action == 2:
+                                    s.send("2".encode('ascii'))
+                                elif self.failed_to_scan_file_action == 3:
+                                    s.send("3".encode('ascii'))
+                            else:
+                                s.send("2".encode('ascii'))
+                        else:
                             s.send("2".encode('ascii'))
-                        elif self.failed_to_scan_file_action == 3:
-                            s.send("3".encode('ascii'))
 
         except ConnectionRefusedError:
             print(f"Lỗi: Không thể kết nối. Đảm bảo Server đang chạy trên {SERVER_IP}:{SERVER_PORT}.")

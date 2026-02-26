@@ -292,11 +292,20 @@ class ScanWindow(QtWidgets.QMainWindow):
 
     @pyqtSlot()
     def scan_failed(self):
-        reply = QMessageBox.warning(self,
-                            "Lỗi trong khi quét file",
-                            f"Đã xảy ra lỗi trong khi quét file , bạn có muốn thử lại không?",
-                            QMessageBox.StandardButton.Retry | QMessageBox.StandardButton.Ignore | QMessageBox.StandardButton.Cancel,
-                            QMessageBox.StandardButton.Retry)
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Lỗi trong khi quét file")
+        msg_box.setText("Đã xảy ra lỗi trong khi quét file , bạn có muốn thử lại không?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Retry | QMessageBox.StandardButton.Ignore | QMessageBox.StandardButton.Cancel)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
+        
+        checkbox = QCheckBox("Không hiển thị lại thông báo này (mặc định bỏ qua).")
+        msg_box.setCheckBox(checkbox)
+
+        reply = msg_box.exec()
+
+        if checkbox.isChecked():
+            self.worker.file_batch_error_default_skip()
         if reply == QMessageBox.StandardButton.Retry:
             self.worker.file_error_request_rescan()
         elif reply == QMessageBox.StandardButton.Ignore:
