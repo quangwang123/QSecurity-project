@@ -835,7 +835,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     }
 
                 }else{
-                    *total_scanned_files++;
+                    *total_scanned_files += 1;
                 }
             }
             check_hash_failed_file_element = check_hash_failed_file_element->next;
