@@ -744,7 +744,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON_free(json_string_to_send);
 
                 // process server scan result
-                int server_scan_result_array_element_index = 0;
                 cJSON* server_scan_result_element = NULL;
                 cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
                     cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
@@ -769,7 +768,6 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                             }
                         }
                     }
-                    server_scan_result_array_element_index += 1;
                 }
 
                 cJSON_Delete(server_scan_result);
