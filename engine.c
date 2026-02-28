@@ -554,22 +554,26 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         cJSON* server_scan_result_element = NULL;
         cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
             cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
-            if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
-                cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
-                cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
-                cJSON* virus_found_file_object = cJSON_CreateObject();
+            if (cJSON_IsString(server_scan_result_file_status_item) && server_scan_result_file_status_item->valuestring){
+                if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+                    cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                    cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
+                    cJSON* virus_found_file_object = cJSON_CreateObject();
 
-                cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                for (int i = 0; i < total_file_path_in_queue; i++){
-                    if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
-                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
-                        break;
+                    if(virus_found_file_object){
+                        cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                        for (int i = 0; i < total_file_path_in_queue; i++){
+                            if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                                AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                break;
+                            }
+                        }
+
+                        cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                        *total_viruses_found += 1;
+                        IsVirusFoundInThisBatch = 1;
                     }
                 }
-
-                cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
-                *total_viruses_found += 1;
-                IsVirusFoundInThisBatch = 1;
             }
         }
 
@@ -744,22 +748,26 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON* server_scan_result_element = NULL;
                 cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
                     cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
-                    if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
-                        cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
-                        cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
-                        cJSON* virus_found_file_object = cJSON_CreateObject();
+                    if (cJSON_IsString(server_scan_result_file_status_item) && server_scan_result_file_status_item->valuestring){
+                        if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+                            cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                            cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
+                            cJSON* virus_found_file_object = cJSON_CreateObject();
 
-                        cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                        for (int i = 0; i < total_file_path_in_queue; i++){
-                            if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
-                                AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
-                                break;
+                            if (virus_found_file_object){
+                                cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                                for (int i = 0; i < total_file_path_in_queue; i++){
+                                    if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                        break;
+                                    }
+                                }
+
+                                cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                                *total_viruses_found += 1;
+                                IsVirusFoundInThisBatch = 1;
                             }
                         }
-
-                        cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
-                        *total_viruses_found += 1;
-                        IsVirusFoundInThisBatch = 1;
                     }
                     server_scan_result_array_element_index += 1;
                 }
