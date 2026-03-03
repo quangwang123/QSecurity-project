@@ -15,10 +15,6 @@
 #define DEFAULT_PORT "27015"
 #define SHA256_HASH_STRING_LEN 64
 
-
-// Đảm bảo liên kết với thư viện Ws2_32.lib
-#pragma comment (lib, "Ws2_32.lib")
-
 typedef struct{
     char hash_string_in[SHA256_HASH_STRING_LEN + 1];
     char virus_id_result_out[100];
