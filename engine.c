@@ -33,7 +33,7 @@ typedef struct{
 } CheckHashThreadData;
 
 SOCKET initialize_connection_to_virus_scan_server();
-int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket);
+int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET ClientSocket);
 int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket);
 
 // Hàm để đọc nội dung file vào một chuỗi động
@@ -299,7 +299,7 @@ int main() {
                     //scan directory
                     wchar_t path_to_scan[MAX_PATH_LENGTH];
                     MultiByteToWideChar(CP_UTF8, 0, folder_path_element->valuestring, -1, path_to_scan, MAX_PATH_LENGTH);
-                    scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, ServerSocket, ClientSocket);
+                    scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, &ServerSocket, ClientSocket);
                 }
             }
         }
@@ -326,7 +326,7 @@ int main() {
 int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LENGTH], 
     cJSON* check_hash_failed_files_list, 
     cJSON* hash_string_list, 
-    SOCKET ServerSocket, 
+    SOCKET* ServerSocket, 
     SOCKET ClientSocket, 
     int total_file_path_in_queue,
     int *IsStopScanning,
@@ -461,17 +461,21 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
     IsSendOrReceiveHashFailed = 0;
     while (IsAllHashFailed == 0){
+        int WSALastError = 0;
+
         if (json_string_length <= INT_MAX){
-            iResult = send(ServerSocket, (const char*)&json_string_length, sizeof(json_string_length), 0);
+            iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(json_string_length), 0);
             if (iResult == SOCKET_ERROR) {
-                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                WSALastError = WSAGetLastError();
+                fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                 IsSendOrReceiveHashFailed = 1;
                 goto finish_send_hash;
             }
 
-            iResult = send(ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
+            iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
             if (iResult == SOCKET_ERROR) {
-                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                WSALastError = WSAGetLastError();
+                fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                 IsSendOrReceiveHashFailed = 1;
                 goto finish_send_hash;
             }
@@ -482,9 +486,10 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         
         {
             size_t array_len = 0;
-            iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+            iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
             if (iResult == SOCKET_ERROR) {
-                fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+                WSALastError = WSAGetLastError();
+                fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
                 IsSendOrReceiveHashFailed = 1;
                 goto finish_send_hash;
             } else if (array_len > INT_MAX){
@@ -494,7 +499,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             }
 
             char recvbuf[array_len];
-            iResult = recv(ServerSocket, recvbuf, (int)array_len, 0);
+            iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
 
             if (iResult > 0) {
                 // PHÂN TÍCH JSON PHẢN HỒI
@@ -508,6 +513,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     }
                     IsSendOrReceiveHashFailed = 1;
                 }
+            } else if (iResult == SOCKET_ERROR){
+                WSALastError = WSAGetLastError();
+                fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
             } else{
                 IsSendOrReceiveHashFailed = 1;
             }
@@ -532,6 +540,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
             if (response_code == '1'){
                 IsSendOrReceiveHashFailed = 0; // reset flag and try to send/receive hash again
+                if (WSALastError == WSAECONNRESET || WSALastError == WSAENOTCONN || WSALastError == WSAENOTSOCK){
+                    *ServerSocket = initialize_connection_to_virus_scan_server();
+                }
             } else if (response_code == '2'){
                 // skip this batch of files
                 break;
@@ -609,6 +620,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     
     if (IsAnyHashFailed){
         cJSON *check_hash_failed_file_element = check_hash_failed_files_list->child;
+        int WSALastError = 0;
+        
         while (check_hash_failed_file_element != NULL) {
             cJSON *check_hash_failed_file_item = cJSON_GetObjectItemCaseSensitive(check_hash_failed_file_element, "file_path");
             if (cJSON_IsString(check_hash_failed_file_item) && (check_hash_failed_file_item->valuestring != NULL)){
@@ -689,16 +702,18 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                 while (1){
                     if (json_string_length <= INT_MAX){
-                        iResult = send(ServerSocket, (const char*)&json_string_length, sizeof(int), 0);
+                        iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(int), 0);
                         if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                             IsSendOrReceiveHashFailed = 1;
                             goto finish_send_hash;
                         }
 
-                        iResult = send(ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
+                        iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
                         if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                             IsSendOrReceiveHashFailed = 1;
                             goto finish_send_hash;
                         }
@@ -708,9 +723,10 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     }
 
                     size_t array_len;
-                    iResult = recv(ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+                    iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
                     if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+                        WSALastError = WSAGetLastError();
+                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
                         IsSendOrReceiveHashFailed = 1;
                         goto finish_send_hash;
                     } else if (array_len > INT_MAX){
@@ -720,7 +736,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     }
                     
                     char recvbuf[array_len];
-                    iResult = recv(ServerSocket, recvbuf, (int)array_len, 0);
+                    iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
 
                     if (iResult > 0) {
                         // PHÂN TÍCH JSON PHẢN HỒI
@@ -734,6 +750,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                             }
                             IsScanHashFailed = 1;
                         }
+                    }else if (iResult == SOCKET_ERROR){
+                        WSALastError = WSAGetLastError();
+                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
                     } else{
                         IsScanHashFailed = 1;
                     }
@@ -823,6 +842,10 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         if (file_scan_error_action_respone_code == '1'){
                             cJSON_free(check_hash_failed_file_element_string);
                             continue;
+                        }else if (file_scan_error_action_respone_code == '2'){
+                            if (WSALastError == WSAECONNRESET || WSALastError == WSAENOTCONN || WSALastError == WSAENOTSOCK){
+                                *ServerSocket = initialize_connection_to_virus_scan_server();
+                            }
                         }else if (file_scan_error_action_respone_code == '3'){
                             cJSON_free(check_hash_failed_file_element_string);
                             *IsStopScanning = 1;
@@ -876,7 +899,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     return 0;
 }
 
-int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket) {
+int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET ClientSocket) {
     static int IsStopScanning = 0; // flag to stop scanning when receive stop signal from GUI client, should be static to keep its value between function calls and placed at the beginning of the function to check before doing anything
 
     if (IsStopScanning){
