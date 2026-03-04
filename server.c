@@ -315,7 +315,8 @@ int handle_client_connection(SOCKET client_socket, sqlite3 *db) {
         bytesReceived = recv(client_socket, recvbuf, array_len, 0);
 
         if (bytesReceived > 0) {
-            if (received_hash_array = cJSON_Parse(recvbuf)) {
+            received_hash_array = cJSON_Parse(recvbuf);
+            if (received_hash_array) {
                 if (cJSON_IsArray(received_hash_array)){
                     // printf("Server %d: Bytes received: %d\n", (int)client_socket, bytesReceived);
                     // printf("Server %d: Received hash: '%s'\n", (int)client_socket, recvbuf);
