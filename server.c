@@ -163,7 +163,7 @@ int main() {
     // 3. Tạo Socket để lắng nghe kết nối
     ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     if (ListenSocket == INVALID_SOCKET) {
-        fprintf(stderr, "Server: socket failed with error: %ld\n", WSAGetLastError());
+        fprintf(stderr, "Server: socket failed with error: %d\n", WSAGetLastError());
         freeaddrinfo(result);
         WSACleanup();
         return 1;
