@@ -111,6 +111,8 @@ DWORD WINAPI count_total_virus_in_database_thread(LPVOID lpParam) {
     int total_virus_in_database_temp = 0;
 
     while (TRUE){
+        total_virus_in_database_temp = 0;
+
         // total_virus_in_database_temp += count_rows(count_total_virus_in_database_thread_data->db, "Malware_hashes");
         total_virus_in_database_temp += count_rows(count_total_virus_in_database_thread_data->db, "EICAR");
 
