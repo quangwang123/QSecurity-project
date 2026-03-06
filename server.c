@@ -416,7 +416,6 @@ int handle_client_connection(SOCKET client_socket, sqlite3 *db) {
                 }
 
             } else {
-                cJSON_Delete(received_hash_array);
                 fprintf(stderr, "Server %d: Cannot parse json string\n",
                         (int)client_socket);
             }
