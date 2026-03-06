@@ -14,6 +14,7 @@
 
 #define DEFAULT_PORT "27015"
 #define SHA256_HASH_STRING_LEN 64
+#define ARRAY_LEN_LIMIT 4096
 
 typedef struct{
     char hash_string_in[SHA256_HASH_STRING_LEN + 1];
@@ -309,6 +310,11 @@ int handle_client_connection(SOCKET client_socket, sqlite3 *db) {
             break;
         }else{
             fprintf(stderr, "Server %d: recv failed with error: %d\n", (int)client_socket, WSAGetLastError());
+            break;
+        }
+
+        if (array_len > ARRAY_LEN_LIMIT){ // Limit array length to prevent potential DoS attack or memory exhaustion
+            fprintf(stderr, "Server %d: Received array length is too long.\n", (int)client_socket);
             break;
         }
 
