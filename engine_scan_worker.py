@@ -92,6 +92,7 @@ class ScanEngineWorker(QObject):
     scan_failed = pyqtSignal() # scan_failed means scan failed entire file batch or scan failed single file (if user use scan single file) 
     failed_to_scan_file = pyqtSignal(str) # failed_to_scan_file means one or some file failed to scan
     failed_to_send_hash_to_server = pyqtSignal()
+    unexpected_error_occurred = pyqtSignal()
     def __init__(self, file_path, parent=None):
         super().__init__(parent)
         self.file_path = file_path # Also can be folder path if user choose specified folder scan
@@ -99,6 +100,7 @@ class ScanEngineWorker(QObject):
         self.action_needed = False # if scan result is infected, action needed will be set to true and it will be used to display "Action needed" in GUI and also used to determine whether we need to display virus detected info in scan result or not because if action_needed == False, we will not display virus detected info because it means no virus found
         self.failed_to_scan_file_action = 0 # 1: rescan, 2: skip, 3: cancel
         self.failed_to_send_hash_action = 0 # 1: resend, 2: skip, 3: cancel
+        self.unexpected_error_action = 0 # 1 retry, 2 skip, 3 cancel
         self.default_skip = 0 # 0: not skip, 1: skip. Default skip when use choose don't ask again for rescan or skip or cancel (scan failed)
         self.default_skip_when_file_batch_error = 0
     def run_single_scan_process(self):
@@ -170,6 +172,15 @@ class ScanEngineWorker(QObject):
     @pyqtSlot()
     def file_batch_error_default_skip(self):
         self.default_skip_when_file_batch_error = 1
+    @pyqtSlot()
+    def unexpected_error_request_retry(self):
+        self.unexpected_error_action = 1
+    @pyqtSlot()
+    def unexpected_error_request_skip(self):
+        self.unexpected_error_action = 2
+    @pyqtSlot()
+    def unexpected_error_request_cancel(self):
+        self.unexpected_error_action = 3
 
     def scan_folder(self, folder_path, IsSpecifiedFolderScan): #In this version, all scanning logic is in engine instead GUI to improve performance and scanning speed. GUI now just for displaying scan progress and scan result only
         write_scan_info_data(folder_path, IsSingleFileScan=False)
@@ -274,6 +285,19 @@ class ScanEngineWorker(QObject):
                                 s.send("2".encode('ascii'))
                         else:
                             s.send("2".encode('ascii'))
+                    elif recieve_code == '7':
+                        self.unexpected_error_occurred.emit()
+
+                        self.unexpected_error_action = 0
+                        while self.unexpected_error_action == 0:
+                            continue
+
+                        if self.unexpected_error_action == 1:
+                            s.send("1".encode('ascii'))
+                        elif self.unexpected_error_action == 2:
+                            s.send("2".encode('ascii'))
+                        elif self.unexpected_error_action == 3:
+                            s.send("3".encode('ascii'))                        
 
         except ConnectionRefusedError:
             print(f"Lỗi: Không thể kết nối. Đảm bảo Server đang chạy trên {SERVER_IP}:{SERVER_PORT}.")

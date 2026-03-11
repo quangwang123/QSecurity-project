@@ -202,6 +202,25 @@ void clear_json_array(cJSON *array) {
     }
 }
 
+char unexpected_error_occurred(SOCKET ClientSocket){
+    char response_code;
+    int iResult;
+
+    iResult = send(ClientSocket, "7", 1, 0);
+    if (iResult == SOCKET_ERROR){
+        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        return -1;
+    }
+
+    iResult = recv(ClientSocket, &response_code, 1, 0);
+    if (iResult == SOCKET_ERROR){
+        fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+        return -1;
+    }
+
+    return response_code;
+}
+
 int main() {
     int iResult;
     WSADATA wsaData;
@@ -355,28 +374,48 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", *total_scanned_files);
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
-    current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
-    current_scan_progress_string_length = strlen(current_scan_progress_string);
-    if (current_scan_progress_string_length <= INT_MAX){
-        iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-        }
-    
-        iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+    while (1){
+        current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+
+        if (current_scan_progress_string){
+            if (current_scan_progress_string_length <= INT_MAX){
+                current_scan_progress_string_length = strlen(current_scan_progress_string);
+                iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+            
+                iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+                
+                iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+
+                cJSON_free(current_scan_progress_string);
+                break;
+            } else{
+                fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
+                cJSON_free(current_scan_progress_string);
+            }
+        } else{
+            fprintf(stderr, "Failed to print current_scan_progress json object\n");
         }
 
-        iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+        if (unexpected_error_action == '1'){
+            continue;
+        } else if (unexpected_error_action == '2'){
+            break;
+        } else if (unexpected_error_action == '3'){
+            *IsStopScanning = 1;
+            return 0;
         }
-    } else{
-        fwprintf(stderr, L"Current scan progress string is too long to send.\n");
     }
 
-    cJSON_free(current_scan_progress_string);
     cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
     cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
     cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");
@@ -567,22 +606,45 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
             if (cJSON_IsString(server_scan_result_file_status_item) && server_scan_result_file_status_item->valuestring){
                 if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
-                    cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
-                    cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
-                    cJSON* virus_found_file_object = cJSON_CreateObject();
+                    while (1){
+                        cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                        cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
 
-                    if(virus_found_file_object){
-                        cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                        for (int i = 0; i < total_file_path_in_queue; i++){
-                            if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
-                                AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                        if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
+                            && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){
+                            cJSON* virus_found_file_object = cJSON_CreateObject();
+
+                            if(virus_found_file_object){
+                                cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                                for (int i = 0; i < total_file_path_in_queue; i++){
+                                    if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                        break;
+                                    }
+                                }
+
+                                cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                                *total_viruses_found += 1;
+                                IsVirusFoundInThisBatch = 1;
+
                                 break;
+                            } else{
+                                fprintf(stderr, "Failed to create virus found file object.\n");
                             }
+                        } else{
+                            fprintf(stderr, "Invalid server scan result format.\n");
                         }
 
-                        cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
-                        *total_viruses_found += 1;
-                        IsVirusFoundInThisBatch = 1;
+                        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+
+                        if (unexpected_error_action == '1'){
+                            continue;
+                        } else if (unexpected_error_action == '2'){
+                            break;
+                        } else if (unexpected_error_action == '3'){
+                            *IsStopScanning = 1;
+                            return 0;
+                        }
                     }
                 }
             }
@@ -762,28 +824,53 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                 cJSON_free(json_string_to_send);
 
-                // process server scan result
-                cJSON* server_scan_result_element = NULL;
-                cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
-                    cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
-                    if (cJSON_IsString(server_scan_result_file_status_item) && server_scan_result_file_status_item->valuestring){
-                        if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
-                            cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
-                            cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
-                            cJSON* virus_found_file_object = cJSON_CreateObject();
+                if (!IsSendOrReceiveHashFailed && !IsScanHashFailed && server_scan_result){
+                    // process server scan result
+                    cJSON* server_scan_result_element = NULL;
+                    cJSON_ArrayForEach(server_scan_result_element, server_scan_result){
+                        cJSON* server_scan_result_file_status_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "status");
+                        if (cJSON_IsString(server_scan_result_file_status_item) && server_scan_result_file_status_item->valuestring){
+                            if (strcmp(server_scan_result_file_status_item->valuestring, "infected") == 0){
+                                while (1){
+                                    cJSON* server_scan_result_virus_name_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "virus_id");
+                                    cJSON* server_scan_result_hash_item = cJSON_GetObjectItemCaseSensitive(server_scan_result_element, "hash_str");
+                                    
+                                    if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
+                                        && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){ 
+                                        cJSON* virus_found_file_object = cJSON_CreateObject();
+                                        
+                                        if (virus_found_file_object){
+                                            cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
+                                            for (int i = 0; i < total_file_path_in_queue; i++){
+                                                if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
+                                                    AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                                    break;
+                                                }
+                                            }
 
-                            if (virus_found_file_object){
-                                cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
-                                for (int i = 0; i < total_file_path_in_queue; i++){
-                                    if (strcmp(server_scan_result_hash_item->valuestring, check_hash_thread_data[i].hash_string_output) == 0){
-                                        AddWideStringValueToCJSONObject(virus_found_file_object, "file_path", check_hash_thread_data[i].file_path_input);
+                                            cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
+                                            *total_viruses_found += 1;
+                                            IsVirusFoundInThisBatch = 1;
+
+                                            break;
+                                        } else{
+                                            fprintf(stderr, "Failed to create virus found file object.\n");
+                                        }
+                                    } else{
+                                        fprintf(stderr, "Invalid server scan result format.\n");
+                                    }
+
+                                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+
+                                    if (unexpected_error_action == '1'){
+                                        continue;
+                                    } else if (unexpected_error_action == '2'){
                                         break;
+                                    } else if (unexpected_error_action == '3'){
+                                        *IsStopScanning = 1;
+                                        return 0;
                                     }
                                 }
-
-                                cJSON_AddItemToArray(virus_found_file_paths, virus_found_file_object);
-                                *total_viruses_found += 1;
-                                IsVirusFoundInThisBatch = 1;
                             }
                         }
                     }
@@ -870,28 +957,48 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", *total_scanned_files);
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
-    current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
-    current_scan_progress_string_length = strlen(current_scan_progress_string);
-    if (current_scan_progress_string_length <= INT_MAX){
-        iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-        }
-    
-        iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+    while (1){
+        current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+
+        if (current_scan_progress_string){
+            if (current_scan_progress_string_length <= INT_MAX){
+                current_scan_progress_string_length = strlen(current_scan_progress_string);
+                iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+            
+                iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+                
+                iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                }
+
+                cJSON_free(current_scan_progress_string);
+                break;
+            } else{
+                fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
+                cJSON_free(current_scan_progress_string);
+            }
+        } else{
+            fprintf(stderr, "Failed to print current_scan_progress json object\n");
         }
 
-        iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
-        if (iResult == SOCKET_ERROR) {
-            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+        if (unexpected_error_action == '1'){
+            continue;
+        } else if (unexpected_error_action == '2'){
+            break;
+        } else if (unexpected_error_action == '3'){
+            *IsStopScanning = 1;
+            return 0;
         }
-    } else{
-        fwprintf(stderr, L"Current scan progress string is too long to send.\n");
     }
 
-    cJSON_free(current_scan_progress_string);
     cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
     cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
     cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");

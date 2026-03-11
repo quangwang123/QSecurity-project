@@ -315,6 +315,23 @@ class ScanWindow(QtWidgets.QMainWindow):
             self.worker.file_error_request_cancel()
             self.thread.requestInterruption()
 
+    @pyqtSlot()
+    def unexpected_error_occurred(self):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Lỗi trong khi quét file")
+        msg_box.setText("Đã xảy ra lỗi không mong muốn, bạn có muốn thử lại không?")
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Retry | QMessageBox.StandardButton.Ignore | QMessageBox.StandardButton.Cancel)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
+
+        reply = msg_box.exec()
+
+        if reply == QMessageBox.StandardButton.Retry:
+            self.worker.unexpected_error_request_retry()
+        elif reply == QMessageBox.StandardButton.Ignore:
+            self.worker.unexpected_error_request_skip()
+        elif reply == QMessageBox.StandardButton.Cancel:
+            self.worker.unexpected_error_request_cancel()
 class QuickScanWindow(ScanWindow):
     def __init__(self):
         super().__init__()
@@ -338,6 +355,7 @@ class QuickScanWindow(ScanWindow):
         self.worker.failed_to_scan_file.connect(self.failed_to_scan_file)
         self.worker.failed_to_send_hash_to_server.connect(self.failed_to_send_hash_to_server)
         self.worker.scan_failed.connect(self.scan_failed)
+        self.worker.unexpected_error_occurred.connect(self.unexpected_error_occurred)
 
         # 5. Bắt đầu chạy worker khi thread được khởi động
         self.thread.started.connect(self.worker.run_quick_scan_process)
@@ -379,6 +397,7 @@ class SpecifiedFolderScanWindow(ScanWindow):
         self.worker.failed_to_scan_file.connect(self.failed_to_scan_file)
         self.worker.failed_to_send_hash_to_server.connect(self.failed_to_send_hash_to_server)
         self.worker.scan_failed.connect(self.scan_failed)
+        self.worker.unexpected_error_occurred.connect(self.unexpected_error_occurred)
 
          # 5. Bắt đầu chạy worker khi thread được khởi động
         self.thread.started.connect(self.worker.run_specified_folder_scan_process)
@@ -419,6 +438,7 @@ class FullScanWindow(ScanWindow):
         self.worker.failed_to_scan_file.connect(self.failed_to_scan_file)
         self.worker.failed_to_send_hash_to_server.connect(self.failed_to_send_hash_to_server)
         self.worker.scan_failed.connect(self.scan_failed)
+        self.worker.unexpected_error_occurred.connect(self.unexpected_error_occurred)
 
          # 5. Bắt đầu chạy worker khi thread được khởi động
         self.thread.started.connect(self.worker.full_scan_process)
