@@ -674,30 +674,46 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         cJSON_Delete(server_scan_result);
 
         if (IsVirusFoundInThisBatch){
-            // send code 4 mean found virus in this batch
-            iResult = send(ClientSocket, "4", 1, 0);
-            if (iResult == SOCKET_ERROR) {
-                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-            }
+            while (1){
+                char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);       
+                if (virus_found_file_paths_string){
+                    // send code 4 mean found virus in this batch
+                    iResult = send(ClientSocket, "4", 1, 0);
+                    if (iResult == SOCKET_ERROR) {
+                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                    }
 
-            char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
-            size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+                    size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+                    if(virus_found_file_paths_string_length <= INT_MAX){
+                        iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
+                        if (iResult == SOCKET_ERROR) {
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                        }
 
-            if(virus_found_file_paths_string_length <= INT_MAX){
-                iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
-                if (iResult == SOCKET_ERROR) {
-                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                        iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
+                        if (iResult == SOCKET_ERROR) {
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                        }
+                    }else{
+                        fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
+                    }
+
+                    cJSON_free(virus_found_file_paths_string);
+                    break;
+                } else{
+                    fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
+                    
+                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                    if (unexpected_error_action == '1'){
+                        continue;
+                    } else if (unexpected_error_action == '2'){
+                        break;
+                    } else if (unexpected_error_action == '3'){
+                        *IsStopScanning = 1;
+                        return 0;
+                    }
                 }
-
-                iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
-                if (iResult == SOCKET_ERROR) {
-                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                }
-            }else{
-                fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
             }
-
-            cJSON_free(virus_found_file_paths_string);
         }
     }
     
@@ -919,30 +935,46 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON_Delete(server_scan_result);
 
                 if (IsVirusFoundInThisBatch){
-                    // send code 4 mean found virus in this batch
-                    iResult = send(ClientSocket, "4", 1, 0);
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                    }
+                    while (1){
+                    char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);       
+                        if (virus_found_file_paths_string){
+                            // send code 4 mean found virus in this batch
+                            iResult = send(ClientSocket, "4", 1, 0);
+                            if (iResult == SOCKET_ERROR) {
+                                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            }
 
-                    char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);
-                    size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+                            size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
+                            if(virus_found_file_paths_string_length <= INT_MAX){
+                                iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
+                                if (iResult == SOCKET_ERROR) {
+                                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                }
 
-                    if(virus_found_file_paths_string_length <= INT_MAX){
-                        iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
-                        if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
+                                if (iResult == SOCKET_ERROR) {
+                                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                }
+                            }else{
+                                fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
+                            }
+
+                            cJSON_free(virus_found_file_paths_string);
+                            break;
+                        } else{
+                            fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
+                            
+                            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                            if (unexpected_error_action == '1'){
+                                continue;
+                            } else if (unexpected_error_action == '2'){
+                                break;
+                            } else if (unexpected_error_action == '3'){
+                                *IsStopScanning = 1;
+                                return 0;
+                            }
                         }
-
-                        iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
-                        if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                        }
-                    }else{
-                        fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
                     }
-
-                    cJSON_free(virus_found_file_paths_string);
                 }
 
                 send_scan_result_to_gui:
