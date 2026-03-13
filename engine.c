@@ -712,32 +712,48 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON_AddNumberToObject(current_scan_progress, "total_scanned_files", *total_scanned_files);
                 cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
-                current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
-                current_scan_progress_string_length = strlen(current_scan_progress_string);
+                while (1){
+                    current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
 
-                if (current_scan_progress_string_length <= INT_MAX){
-                    iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                        *IsStopScanning = 1;
-                        cJSON_free(current_scan_progress_string);
+                    if (current_scan_progress_string){
+                        if (current_scan_progress_string_length <= INT_MAX){
+                            current_scan_progress_string_length = strlen(current_scan_progress_string);
+                            iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                            if (iResult == SOCKET_ERROR) {
+                                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            }
+                        
+                            iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                            if (iResult == SOCKET_ERROR) {
+                                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            }
+                            
+                            iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                            if (iResult == SOCKET_ERROR) {
+                                fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                            }
+
+                            cJSON_free(current_scan_progress_string);
+                            break;
+                        } else{
+                            fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
+                            cJSON_free(current_scan_progress_string);
+                        }
+                    } else{
+                        fprintf(stderr, "Failed to print current_scan_progress json object\n");
+                    }
+
+                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                    if (unexpected_error_action == '1'){
+                        continue;
+                    } else if (unexpected_error_action == '2'){
                         break;
+                    } else if (unexpected_error_action == '3'){
+                        *IsStopScanning = 1;
+                        return 0;
                     }
-                
-                    iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                    }
-
-                    iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                    }
-                } else{
-                    fwprintf(stderr, L"Current scan progress string is too long to send.\n");
                 }
 
-                cJSON_free(current_scan_progress_string);
                 cJSON_DeleteItemFromObject(current_scan_progress, "current_scanning_file");
                 cJSON_DeleteItemFromObject(current_scan_progress, "total_scanned_files");
                 cJSON_DeleteItemFromObject(current_scan_progress, "total_viruses_found");
