@@ -601,6 +601,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             break;
 
         } else{
+            fwprintf(stderr, L"Failed to print hash_string_list json array.\n");
+
             char unexpected_error_action = unexpected_error_occurred(ClientSocket);
 
             if (unexpected_error_action == '1'){
