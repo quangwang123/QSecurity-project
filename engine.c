@@ -32,6 +32,8 @@ typedef struct{
     char hash_string_output[SHA256_HASH_STRING_LEN + 1];
 } CheckHashThreadData;
 
+typedef cJSON *(*cJSONAlloc)();
+
 SOCKET initialize_connection_to_virus_scan_server();
 int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET ClientSocket);
 int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket);
@@ -219,6 +221,30 @@ char unexpected_error_occurred(SOCKET ClientSocket){
     }
 
     return response_code;
+}
+
+cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, SOCKET ClientSocket, int *IsStopScanning){
+    cJSON *ptr = NULL;
+
+    while (1){
+        ptr = cjsonalloc();
+
+        if (ptr == NULL){
+            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+            if (unexpected_error_action == '1'){
+                continue;
+            } else if (unexpected_error_action == '2'){
+                return NULL;
+            } else if (unexpected_error_action == '3'){
+                *IsStopScanning = 1;
+                return NULL;
+            }
+        }else{
+            break;
+        }
+    }
+
+    return ptr;
 }
 
 int main() {
