@@ -659,7 +659,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                         if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                             && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){
-                            cJSON* virus_found_file_object = cJSON_CreateObject();
+                            cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, ClientSocket, IsStopScanning);
 
                             if(virus_found_file_object){
                                 cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -677,6 +677,11 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                 break;
                             } else{
                                 fprintf(stderr, "Failed to create virus found file object.\n");
+                                if (*IsStopScanning){
+                                    return 0;
+                                }
+
+                                break;
                             }
                         } else{
                             fprintf(stderr, "Invalid server scan result format.\n");
@@ -919,7 +924,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                     
                                     if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                                         && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){ 
-                                        cJSON* virus_found_file_object = cJSON_CreateObject();
+                                        cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, ClientSocket, IsStopScanning);
                                         
                                         if (virus_found_file_object){
                                             cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -937,6 +942,11 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                             break;
                                         } else{
                                             fprintf(stderr, "Failed to create virus found file object.\n");
+                                            if (*IsStopScanning){
+                                                return 0;
+                                            }
+
+                                            break;
                                         }
                                     } else{
                                         fprintf(stderr, "Invalid server scan result format.\n");
