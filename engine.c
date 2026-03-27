@@ -230,7 +230,7 @@ char unexpected_error_occurred(SOCKET ClientSocket){
     return response_code;
 }
 
-cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket, int *IsStopScanning){
+cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket){
     cJSON *ptr = NULL;
 
     while (1){
@@ -245,7 +245,6 @@ cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocr
                 return NULL;
             } else if (unexpected_error_action == '3'){
                 *cjsonallocresult= CJSON_ALLOC_CANCEL;
-                *IsStopScanning = 1;
                 return NULL;
             }
         }else{
@@ -255,7 +254,7 @@ cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocr
     }
 }
 
-char *cJSONPrintNULLCheck(cJSONPrint cjsonprint, const cJSON *cjsonitem, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket, int *IsStopScanning){
+char *cJSONPrintNULLCheck(cJSONPrint cjsonprint, const cJSON *cjsonitem, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket){
     char *ptr = NULL;
     while (1){
         ptr = cjsonprint(cjsonitem);
@@ -269,7 +268,6 @@ char *cJSONPrintNULLCheck(cJSONPrint cjsonprint, const cJSON *cjsonitem, cJSONAl
                 return NULL;
             } else if (unexpected_error_action == '3'){
                 *cjsonallocresult= CJSON_ALLOC_CANCEL;
-                *IsStopScanning = 1;
                 return NULL;
             }
         }else{
@@ -692,7 +690,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                         if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                             && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){
-                            cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket, IsStopScanning);
+                            cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket);
 
                             if(cjsonallocresult == CJSON_ALLOC_SUCCESS){
                                 cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -711,6 +709,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                             } else{
                                 fprintf(stderr, "Failed to create virus found file object.\n");
                                 if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                                    *IsStopScanning = 1;
                                     return 0;
                                 } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
                                     break;
@@ -957,7 +956,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                     
                                     if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                                         && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){ 
-                                        cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket, IsStopScanning);
+                                        cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket);
                                         
                                         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                                             cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -976,6 +975,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                         } else{
                                             fprintf(stderr, "Failed to create virus found file object.\n");
                                             if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                                                *IsStopScanning = 1;
                                                 return 0;
                                             } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
                                                 break;
