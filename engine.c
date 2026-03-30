@@ -432,9 +432,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
     while (1){
-        current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
-        if (current_scan_progress_string){
+        if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
             if (current_scan_progress_string_length <= INT_MAX){
                 current_scan_progress_string_length = strlen(current_scan_progress_string);
                 iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
@@ -457,19 +457,25 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             } else{
                 fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                 cJSON_free(current_scan_progress_string);
+
+                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                if (unexpected_error_action == '1'){
+                    continue;
+                } else if (unexpected_error_action == '2'){
+                    break;
+                } else if (unexpected_error_action == '3'){
+                    *IsStopScanning = 1;
+                    return 0;
+                }
             }
         } else{
             fprintf(stderr, "Failed to print current_scan_progress json object\n");
-        }
-
-        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-        if (unexpected_error_action == '1'){
-            continue;
-        } else if (unexpected_error_action == '2'){
-            break;
-        } else if (unexpected_error_action == '3'){
-            *IsStopScanning = 1;
-            return 0;
+            if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                *IsStopScanning = 1;
+                return 0;
+            } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                break;
+            }
         }
     }
 
@@ -552,129 +558,115 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         IsAllHashFailed = 1;
     }
 
-    while (1){
-        json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
-        
-        if (json_string_to_send){
-            json_string_length = strlen(json_string_to_send);
+    
+    json_string_to_send = cJSONPrintNULLCheck(cJSON_PrintUnformatted, hash_string_list, &cjsonallocresult, ClientSocket);
+    
+    if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
+        json_string_length = strlen(json_string_to_send);
 
-            IsSendOrReceiveHashFailed = 0;
-            while (IsAllHashFailed == 0){
-                int WSALastError = 0;
+        IsSendOrReceiveHashFailed = 0;
+        while (IsAllHashFailed == 0){
+            int WSALastError = 0;
 
-                if (json_string_length <= INT_MAX){
-                    iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(json_string_length), 0);
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
-                        IsSendOrReceiveHashFailed = 1;
-                        goto finish_send_hash;
-                    }
-
-                    iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
-                        IsSendOrReceiveHashFailed = 1;
-                        goto finish_send_hash;
-                    }
-                }else{
+            if (json_string_length <= INT_MAX){
+                iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(json_string_length), 0);
+                if (iResult == SOCKET_ERROR) {
+                    WSALastError = WSAGetLastError();
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                     IsSendOrReceiveHashFailed = 1;
                     goto finish_send_hash;
                 }
-                
-                {
-                    size_t array_len = 0;
-                    iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
-                        IsSendOrReceiveHashFailed = 1;
-                        goto finish_send_hash;
-                    } else if (array_len > INT_MAX){
-                        fprintf(stderr, "Client: Received array length is too long.\n");
-                        IsSendOrReceiveHashFailed = 1;
-                        goto finish_send_hash;
-                    }
 
-                    char recvbuf[array_len];
-                    iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
-
-                    if (iResult > 0) {
-                        // PHÂN TÍCH JSON PHẢN HỒI
-                        server_scan_result = cJSON_Parse(recvbuf);
-                        if (!server_scan_result) {
-                            const char* error_ptr = cJSON_GetErrorPtr();
-                            if (error_ptr != NULL) {
-                                fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
-                            } else {
-                                fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
-                            }
-                            IsSendOrReceiveHashFailed = 1;
-                        }
-                    } else if (iResult == SOCKET_ERROR){
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
-                    } else{
-                        IsSendOrReceiveHashFailed = 1;
-                    }
+                iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
+                if (iResult == SOCKET_ERROR) {
+                    WSALastError = WSAGetLastError();
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
+                    IsSendOrReceiveHashFailed = 1;
+                    goto finish_send_hash;
                 }
-
-                finish_send_hash:
-                if (IsSendOrReceiveHashFailed == 0){
-                    break;
-                } else{
-                    // send code 3 mean failed to send or receive hash to/from server
-                    iResult = send(ClientSocket, "3", 1, 0);
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                        break;
-                    }
-                    char response_code; // response code from GUI client, 0: continue, 1: skip, 2: stop scanning
-                    iResult = recv(ClientSocket, &response_code, 1, 0);
-                    if (iResult == SOCKET_ERROR) {
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
-                        break;
-                    }
-
-                    if (response_code == '1'){
-                        IsSendOrReceiveHashFailed = 0; // reset flag and try to send/receive hash again
-                        if (WSALastError == WSAECONNRESET || WSALastError == WSAENOTCONN || WSALastError == WSAENOTSOCK){
-                            *ServerSocket = initialize_connection_to_virus_scan_server();
-                        }
-                    } else if (response_code == '2'){
-                        // skip this batch of files
-                        break;
-                    } else if (response_code == '3'){
-                        // stop scanning
-                        *IsStopScanning = 1;
-                        break;
-                    }
-                }
-                
+            }else{
+                IsSendOrReceiveHashFailed = 1;
+                goto finish_send_hash;
             }
             
-            cJSON_free(json_string_to_send);
-            break;
+            {
+                size_t array_len = 0;
+                iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+                if (iResult == SOCKET_ERROR) {
+                    WSALastError = WSAGetLastError();
+                    fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
+                    IsSendOrReceiveHashFailed = 1;
+                    goto finish_send_hash;
+                } else if (array_len > INT_MAX){
+                    fprintf(stderr, "Client: Received array length is too long.\n");
+                    IsSendOrReceiveHashFailed = 1;
+                    goto finish_send_hash;
+                }
 
-        } else{
-            fwprintf(stderr, L"Failed to print hash_string_list json array.\n");
+                char recvbuf[array_len];
+                iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
 
-            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-
-            if (unexpected_error_action == '1'){
-                continue;
-            } else if (unexpected_error_action == '2'){
-                break;
-            } else if (unexpected_error_action == '3'){
-                *IsStopScanning = 1;
-                return 0;
+                if (iResult > 0) {
+                    // PHÂN TÍCH JSON PHẢN HỒI
+                    server_scan_result = cJSON_Parse(recvbuf);
+                    if (!server_scan_result) {
+                        const char* error_ptr = cJSON_GetErrorPtr();
+                        if (error_ptr != NULL) {
+                            fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+                        } else {
+                            fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+                        }
+                        IsSendOrReceiveHashFailed = 1;
+                    }
+                } else if (iResult == SOCKET_ERROR){
+                    WSALastError = WSAGetLastError();
+                    fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
+                } else{
+                    IsSendOrReceiveHashFailed = 1;
+                }
             }
-        }
-    }
 
-    if(*IsStopScanning){
-        return 0;
+            finish_send_hash:
+            if (IsSendOrReceiveHashFailed == 0){
+                break;
+            } else{
+                // send code 3 mean failed to send or receive hash to/from server
+                iResult = send(ClientSocket, "3", 1, 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                    break;
+                }
+                char response_code; // response code from GUI client, 0: continue, 1: skip, 2: stop scanning
+                iResult = recv(ClientSocket, &response_code, 1, 0);
+                if (iResult == SOCKET_ERROR) {
+                    fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
+                    break;
+                }
+
+                if (response_code == '1'){
+                    IsSendOrReceiveHashFailed = 0; // reset flag and try to send/receive hash again
+                    if (WSALastError == WSAECONNRESET || WSALastError == WSAENOTCONN || WSALastError == WSAENOTSOCK){
+                        *ServerSocket = initialize_connection_to_virus_scan_server();
+                    }
+                } else if (response_code == '2'){
+                    // skip this batch of files
+                    break;
+                } else if (response_code == '3'){
+                    // stop scanning
+                    *IsStopScanning = 1;
+                    return 0;
+                }
+            }
+            
+        }
+
+        cJSON_free(json_string_to_send);
+    } else{
+        fwprintf(stderr, L"Failed to print hash_string_list json array.\n");
+        if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+            *IsStopScanning = 1;
+            return 0;
+        }
     }
 
     if (!IsSendOrReceiveHashFailed && !IsAllHashFailed && server_scan_result){
@@ -738,8 +730,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
         if (IsVirusFoundInThisBatch){
             while (1){
-                char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);       
-                if (virus_found_file_paths_string){
+                char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, ClientSocket);      
+                if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                     // send code 4 mean found virus in this batch
                     iResult = send(ClientSocket, "4", 1, 0);
                     if (iResult == SOCKET_ERROR) {
@@ -757,23 +749,30 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
+
+                        cJSON_free(virus_found_file_paths_string);
+                        break;
                     }else{
                         fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
-                    }
+                        cJSON_free(virus_found_file_paths_string);
 
-                    cJSON_free(virus_found_file_paths_string);
-                    break;
+                        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                        if (unexpected_error_action == '1'){
+                            continue;
+                        } else if (unexpected_error_action == '2'){
+                            break;
+                        } else if (unexpected_error_action == '3'){
+                            *IsStopScanning = 1;
+                            return 0;
+                        }
+                    }
                 } else{
                     fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
-                    
-                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-                    if (unexpected_error_action == '1'){
-                        continue;
-                    } else if (unexpected_error_action == '2'){
-                        break;
-                    } else if (unexpected_error_action == '3'){
+                    if (cjsonallocresult == CJSON_ALLOC_CANCEL){
                         *IsStopScanning = 1;
                         return 0;
+                    } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                        break;
                     }
                 }
             }
@@ -792,9 +791,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
                 while (1){
-                    current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+                    current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
-                    if (current_scan_progress_string){
+                    if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                         if (current_scan_progress_string_length <= INT_MAX){
                             current_scan_progress_string_length = strlen(current_scan_progress_string);
                             iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
@@ -817,19 +816,25 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         } else{
                             fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                             cJSON_free(current_scan_progress_string);
+
+                            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                            if (unexpected_error_action == '1'){
+                                continue;
+                            } else if (unexpected_error_action == '2'){
+                                break;
+                            } else if (unexpected_error_action == '3'){
+                                *IsStopScanning = 1;
+                                return 0;
+                            }
                         }
                     } else{
                         fprintf(stderr, "Failed to print current_scan_progress json object\n");
-                    }
-
-                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-                    if (unexpected_error_action == '1'){
-                        continue;
-                    } else if (unexpected_error_action == '2'){
-                        break;
-                    } else if (unexpected_error_action == '3'){
-                        *IsStopScanning = 1;
-                        return 0;
+                        if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                            *IsStopScanning = 1;
+                            return 0;
+                        } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                            break;
+                        }
                     }
                 }
 
@@ -1005,8 +1010,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                 if (IsVirusFoundInThisBatch){
                     while (1){
-                    char *virus_found_file_paths_string = cJSON_PrintUnformatted(virus_found_file_paths);       
-                        if (virus_found_file_paths_string){
+                    char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, ClientSocket);       
+                        if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                             // send code 4 mean found virus in this batch
                             iResult = send(ClientSocket, "4", 1, 0);
                             if (iResult == SOCKET_ERROR) {
@@ -1024,23 +1029,30 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                 if (iResult == SOCKET_ERROR) {
                                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                                 }
+
+                                cJSON_free(virus_found_file_paths_string);
+                                break;
                             }else{
                                 fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
+                                cJSON_free(virus_found_file_paths_string);
+                            
+                                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                                if (unexpected_error_action == '1'){
+                                    continue;
+                                } else if (unexpected_error_action == '2'){
+                                    break;
+                                } else if (unexpected_error_action == '3'){
+                                    *IsStopScanning = 1;
+                                    return 0;
+                                }
                             }
-
-                            cJSON_free(virus_found_file_paths_string);
-                            break;
                         } else{
                             fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
-                            
-                            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-                            if (unexpected_error_action == '1'){
-                                continue;
-                            } else if (unexpected_error_action == '2'){
-                                break;
-                            } else if (unexpected_error_action == '3'){
+                            if (cjsonallocresult == CJSON_ALLOC_CANCEL){
                                 *IsStopScanning = 1;
                                 return 0;
+                            } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                                break;
                             }
                         }
                     }
@@ -1099,9 +1111,9 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
     while (1){
-        current_scan_progress_string = cJSON_PrintUnformatted(current_scan_progress);
+        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
-        if (current_scan_progress_string){
+        if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
             if (current_scan_progress_string_length <= INT_MAX){
                 current_scan_progress_string_length = strlen(current_scan_progress_string);
                 iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
@@ -1124,19 +1136,25 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
             } else{
                 fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                 cJSON_free(current_scan_progress_string);
+
+                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                if (unexpected_error_action == '1'){
+                    continue;
+                } else if (unexpected_error_action == '2'){
+                    break;
+                } else if (unexpected_error_action == '3'){
+                    *IsStopScanning = 1;
+                    return 0;
+                }
             }
         } else{
             fprintf(stderr, "Failed to print current_scan_progress json object\n");
-        }
-
-        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
-        if (unexpected_error_action == '1'){
-            continue;
-        } else if (unexpected_error_action == '2'){
-            break;
-        } else if (unexpected_error_action == '3'){
-            *IsStopScanning = 1;
-            return 0;
+            if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                *IsStopScanning = 1;
+                return 0;
+            } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                break;
+            }
         }
     }
 
