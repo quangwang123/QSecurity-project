@@ -435,8 +435,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
+            current_scan_progress_string_length = strlen(current_scan_progress_string);
             if (current_scan_progress_string_length <= INT_MAX){
-                current_scan_progress_string_length = strlen(current_scan_progress_string);
                 iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
@@ -794,8 +794,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
                     if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
+                        current_scan_progress_string_length = strlen(current_scan_progress_string);
                         if (current_scan_progress_string_length <= INT_MAX){
-                            current_scan_progress_string_length = strlen(current_scan_progress_string);
                             iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                             if (iResult == SOCKET_ERROR) {
                                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
@@ -1114,8 +1114,8 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
         current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
 
         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
+            current_scan_progress_string_length = strlen(current_scan_progress_string);
             if (current_scan_progress_string_length <= INT_MAX){
-                current_scan_progress_string_length = strlen(current_scan_progress_string);
                 iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
