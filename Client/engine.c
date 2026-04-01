@@ -881,72 +881,77 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 CloseHandle(hThreads[0]);
 
                 json_string_to_send = cJSON_PrintUnformatted(hash_string_list);
-                json_string_length = strlen(json_string_to_send);
+                if (json_string_to_send){
+                    json_string_length = strlen(json_string_to_send);
 
-                
-                if (json_string_length <= INT_MAX){
-                    iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(int), 0);
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    }
-
-                    iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    }
-                }else{
-                    IsScanHashFailed = 1;
-                    goto send_scan_result_to_gui;
-                }
-
-                {
-                    size_t array_len;
-                    iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
-                    if (iResult == SOCKET_ERROR) {
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    } else if (array_len > INT_MAX){
-                        fprintf(stderr, "Client: Received array length is too long.\n");
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    }
-                    
-                    char recvbuf[array_len];
-                    iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
-
-                    if (iResult > 0) {
-                        // PHÂN TÍCH JSON PHẢN HỒI
-                        server_scan_result = cJSON_Parse(recvbuf);
-                        if (!server_scan_result) {
-                            const char* error_ptr = cJSON_GetErrorPtr();
-                            if (error_ptr != NULL) {
-                                fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
-                            } else {
-                                fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
-                            }
+                    if (json_string_length <= INT_MAX){
+                        iResult = send(*ServerSocket, (const char*)&json_string_length, sizeof(int), 0);
+                        if (iResult == SOCKET_ERROR) {
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
                             IsScanHashFailed = 1;
                             goto send_scan_result_to_gui;
                         }
-                    }else if (iResult == SOCKET_ERROR){
-                        WSALastError = WSAGetLastError();
-                        fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    } else{
-                        IsScanHashFailed = 1;
-                        goto send_scan_result_to_gui;
-                    }    
-                }
 
-                cJSON_free(json_string_to_send);
+                        iResult = send(*ServerSocket, json_string_to_send, (int)json_string_length, 0); // Sử dụng độ dài được truyền vào
+                        if (iResult == SOCKET_ERROR) {
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: send failed with error: %d\n", WSALastError);
+                            IsScanHashFailed = 1;
+                            goto send_scan_result_to_gui;
+                        }
+                    }else{
+                        IsScanHashFailed = 1;
+                        goto send_scan_result_to_gui;
+                    }
+
+                    {
+                        size_t array_len;
+                        iResult = recv(*ServerSocket, (char*)&array_len, sizeof(array_len), 0);
+                        if (iResult == SOCKET_ERROR) {
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
+                            IsScanHashFailed = 1;
+                            goto send_scan_result_to_gui;
+                        } else if (array_len > INT_MAX){
+                            fprintf(stderr, "Client: Received array length is too long.\n");
+                            IsScanHashFailed = 1;
+                            goto send_scan_result_to_gui;
+                        }
+                        
+                        char recvbuf[array_len];
+                        iResult = recv(*ServerSocket, recvbuf, (int)array_len, 0);
+
+                        if (iResult > 0) {
+                            // PHÂN TÍCH JSON PHẢN HỒI
+                            server_scan_result = cJSON_Parse(recvbuf);
+                            if (!server_scan_result) {
+                                const char* error_ptr = cJSON_GetErrorPtr();
+                                if (error_ptr != NULL) {
+                                    fprintf(stderr, "Client: Failed to parse JSON response: %s\n", error_ptr);
+                                } else {
+                                    fprintf(stderr, "Client: Failed to parse JSON response (unknown error).\n");
+                                }
+                                IsScanHashFailed = 1;
+                                goto send_scan_result_to_gui;
+                            }
+                        }else if (iResult == SOCKET_ERROR){
+                            WSALastError = WSAGetLastError();
+                            fprintf(stderr, "Client: recv failed with error: %d\n", WSALastError);
+                            IsScanHashFailed = 1;
+                            goto send_scan_result_to_gui;
+                        } else{
+                            IsScanHashFailed = 1;
+                            goto send_scan_result_to_gui;
+                        }    
+                    }
+
+                    cJSON_free(json_string_to_send);
+                } else{
+                    fwprintf(stderr, L"Failed to create json_string_to_send when rescan failed file\n");
+                    IsScanHashFailed = 1;
+                    goto send_scan_result_to_gui;
+                }
 
                 if (!IsSendOrReceiveHashFailed && !IsScanHashFailed && server_scan_result){
                     // process server scan result
