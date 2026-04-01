@@ -42,8 +42,8 @@ typedef cJSON *(*cJSONAlloc)();
 typedef char *(*cJSONPrint)(const cJSON*);
 
 SOCKET initialize_connection_to_virus_scan_server();
-int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET ClientSocket);
-int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket);
+int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET GUISocket);
+int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET GUISocket);
 
 // Hàm để đọc nội dung file vào một chuỗi động
 char* read_file_path_to_string(const char* file_path) {
@@ -211,17 +211,17 @@ void clear_json_array(cJSON *array) {
     }
 }
 
-char unexpected_error_occurred(SOCKET ClientSocket){
+char unexpected_error_occurred(SOCKET GUISocket){
     char response_code;
     int iResult;
 
-    iResult = send(ClientSocket, "7", 1, 0);
+    iResult = send(GUISocket, "7", 1, 0);
     if (iResult == SOCKET_ERROR){
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         return -1;
     }
 
-    iResult = recv(ClientSocket, &response_code, 1, 0);
+    iResult = recv(GUISocket, &response_code, 1, 0);
     if (iResult == SOCKET_ERROR){
         fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
         return -1;
@@ -230,14 +230,14 @@ char unexpected_error_occurred(SOCKET ClientSocket){
     return response_code;
 }
 
-cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket){
+cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocresult, SOCKET GUISocket){
     cJSON *ptr = NULL;
 
     while (1){
         ptr = cjsonalloc();
 
         if (ptr == NULL){
-            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+            char unexpected_error_action = unexpected_error_occurred(GUISocket);
             if (unexpected_error_action == '1'){
                 continue;
             } else if (unexpected_error_action == '2'){
@@ -254,13 +254,13 @@ cJSON *cJSONCreateNULLCheck(cJSONAlloc cjsonalloc, cJSONAllocResult *cjsonallocr
     }
 }
 
-char *cJSONPrintNULLCheck(cJSONPrint cjsonprint, const cJSON *cjsonitem, cJSONAllocResult *cjsonallocresult, SOCKET ClientSocket){
+char *cJSONPrintNULLCheck(cJSONPrint cjsonprint, const cJSON *cjsonitem, cJSONAllocResult *cjsonallocresult, SOCKET GUISocket){
     char *ptr = NULL;
     while (1){
         ptr = cjsonprint(cjsonitem);
 
         if (ptr == NULL){
-            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+            char unexpected_error_action = unexpected_error_occurred(GUISocket);
             if (unexpected_error_action == '1'){
                 continue;
             } else if (unexpected_error_action == '2'){
@@ -328,10 +328,10 @@ int main() {
     }
 
 
-    SOCKET ClientSocket = INVALID_SOCKET;
+    SOCKET GUISocket = INVALID_SOCKET;
 
-    ClientSocket = accept(ListenSocket, NULL, NULL);
-    if (ClientSocket == INVALID_SOCKET) {
+    GUISocket = accept(ListenSocket, NULL, NULL);
+    if (GUISocket == INVALID_SOCKET) {
         fprintf(stderr, "accept failed: %d\n", WSAGetLastError());
         closesocket(ListenSocket);
         WSACleanup();
@@ -363,7 +363,7 @@ int main() {
                 //scan single file
                 wchar_t path_to_scan[MAX_PATH_LENGTH];
                 MultiByteToWideChar(CP_UTF8, 0, file_path_item->valuestring, -1, path_to_scan, MAX_PATH_LENGTH);
-                scan_single_file(path_to_scan, hash_string_list, ServerSocket, ClientSocket);
+                scan_single_file(path_to_scan, hash_string_list, ServerSocket, GUISocket);
                 fwprintf(stdout, L"Single file scan finished: %ls\n", path_to_scan);
             }
         } else{
@@ -374,12 +374,12 @@ int main() {
                     //scan directory
                     wchar_t path_to_scan[MAX_PATH_LENGTH];
                     MultiByteToWideChar(CP_UTF8, 0, folder_path_element->valuestring, -1, path_to_scan, MAX_PATH_LENGTH);
-                    scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, &ServerSocket, ClientSocket);
+                    scan_file_in_directory(path_to_scan, check_hash_failed_files_list, hash_string_list, &ServerSocket, GUISocket);
                 }
             }
         }
     }
-    iResult = send(ClientSocket, "2", 1, 0); // send code 2 mean scan process finished
+    iResult = send(GUISocket, "2", 1, 0); // send code 2 mean scan process finished
     if (iResult == SOCKET_ERROR) {
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         return 1;
@@ -391,7 +391,7 @@ int main() {
     }
 
     closesocket(ServerSocket);
-    closesocket(ClientSocket);
+    closesocket(GUISocket);
     WSACleanup();
 
     fwprintf(stdout, L"scan finished\n");
@@ -402,7 +402,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON* check_hash_failed_files_list, 
     cJSON* hash_string_list, 
     SOCKET* ServerSocket, 
-    SOCKET ClientSocket, 
+    SOCKET GUISocket, 
     int total_file_path_in_queue,
     int *IsStopScanning,
     int *total_scanned_files,
@@ -432,22 +432,22 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
     while (1){
-        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
+        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, GUISocket);
 
         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
             current_scan_progress_string_length = strlen(current_scan_progress_string);
             if (current_scan_progress_string_length <= INT_MAX){
-                iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                iResult = send(GUISocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
             
-                iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                iResult = send(GUISocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
                 
-                iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                iResult = send(GUISocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
@@ -458,7 +458,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                 cJSON_free(current_scan_progress_string);
 
-                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                char unexpected_error_action = unexpected_error_occurred(GUISocket);
                 if (unexpected_error_action == '1'){
                     continue;
                 } else if (unexpected_error_action == '2'){
@@ -527,12 +527,12 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     }
 
     if(cJSON_GetArraySize(hash_string_list) == 0){ // if hash_string_list is empty, scan next batch of files immediately to prevent sending empty json array to server (send empty json array will waste server resource)
-        iResult = send(ClientSocket, "6", 1, 0); // send code 6 mean entire file batch failed to scan
+        iResult = send(GUISocket, "6", 1, 0); // send code 6 mean entire file batch failed to scan
         if (iResult == SOCKET_ERROR) {
             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         }
 
-        iResult = recv(ClientSocket, &file_scan_error_action_respone_code, 1, 0);
+        iResult = recv(GUISocket, &file_scan_error_action_respone_code, 1, 0);
         if (iResult == SOCKET_ERROR) {
                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         }
@@ -542,7 +542,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 check_hash_failed_files_list, 
                 hash_string_list, 
                 ServerSocket, 
-                ClientSocket, 
+                GUISocket, 
                 total_file_path_in_queue,
                 IsStopScanning,
                 total_scanned_files,
@@ -559,7 +559,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     }
 
     
-    json_string_to_send = cJSONPrintNULLCheck(cJSON_PrintUnformatted, hash_string_list, &cjsonallocresult, ClientSocket);
+    json_string_to_send = cJSONPrintNULLCheck(cJSON_PrintUnformatted, hash_string_list, &cjsonallocresult, GUISocket);
     
     if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
         json_string_length = strlen(json_string_to_send);
@@ -631,13 +631,13 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 break;
             } else{
                 // send code 3 mean failed to send or receive hash to/from server
-                iResult = send(ClientSocket, "3", 1, 0);
+                iResult = send(GUISocket, "3", 1, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                     break;
                 }
                 char response_code; // response code from GUI client, 0: continue, 1: skip, 2: stop scanning
-                iResult = recv(ClientSocket, &response_code, 1, 0);
+                iResult = recv(GUISocket, &response_code, 1, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
                     break;
@@ -682,7 +682,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                         if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                             && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){
-                            cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket);
+                            cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, GUISocket);
 
                             if(cjsonallocresult == CJSON_ALLOC_SUCCESS){
                                 cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -711,7 +711,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                             fprintf(stderr, "Invalid server scan result format.\n");
                         }
 
-                        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                        char unexpected_error_action = unexpected_error_occurred(GUISocket);
 
                         if (unexpected_error_action == '1'){
                             continue;
@@ -730,22 +730,22 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
         if (IsVirusFoundInThisBatch){
             while (1){
-                char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, ClientSocket);      
+                char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, GUISocket);      
                 if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                     // send code 4 mean found virus in this batch
-                    iResult = send(ClientSocket, "4", 1, 0);
+                    iResult = send(GUISocket, "4", 1, 0);
                     if (iResult == SOCKET_ERROR) {
                         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                     }
 
                     size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
                     if(virus_found_file_paths_string_length <= INT_MAX){
-                        iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
+                        iResult = send(GUISocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
 
-                        iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
+                        iResult = send(GUISocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
@@ -756,7 +756,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
                         cJSON_free(virus_found_file_paths_string);
 
-                        char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                        char unexpected_error_action = unexpected_error_occurred(GUISocket);
                         if (unexpected_error_action == '1'){
                             continue;
                         } else if (unexpected_error_action == '2'){
@@ -791,22 +791,22 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
                 while (1){
-                    current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
+                    current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, GUISocket);
 
                     if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                         current_scan_progress_string_length = strlen(current_scan_progress_string);
                         if (current_scan_progress_string_length <= INT_MAX){
-                            iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                            iResult = send(GUISocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                             if (iResult == SOCKET_ERROR) {
                                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                             }
                         
-                            iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                            iResult = send(GUISocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
                             if (iResult == SOCKET_ERROR) {
                                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                             }
                             
-                            iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                            iResult = send(GUISocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
                             if (iResult == SOCKET_ERROR) {
                                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                             }
@@ -817,7 +817,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                             fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                             cJSON_free(current_scan_progress_string);
 
-                            char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                            char unexpected_error_action = unexpected_error_occurred(GUISocket);
                             if (unexpected_error_action == '1'){
                                 continue;
                             } else if (unexpected_error_action == '2'){
@@ -966,7 +966,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                     
                                     if (cJSON_IsString(server_scan_result_virus_name_item) && server_scan_result_virus_name_item->valuestring
                                         && cJSON_IsString(server_scan_result_hash_item) && server_scan_result_hash_item->valuestring){ 
-                                        cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, ClientSocket);
+                                        cJSON* virus_found_file_object = cJSONCreateNULLCheck(cJSON_CreateObject, &cjsonallocresult, GUISocket);
                                         
                                         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                                             cJSON_AddStringToObject(virus_found_file_object, "virus_name", server_scan_result_virus_name_item->valuestring);
@@ -995,7 +995,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                         fprintf(stderr, "Invalid server scan result format.\n");
                                     }
 
-                                    char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                                    char unexpected_error_action = unexpected_error_occurred(GUISocket);
 
                                     if (unexpected_error_action == '1'){
                                         continue;
@@ -1015,22 +1015,22 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                 if (IsVirusFoundInThisBatch){
                     while (1){
-                    char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, ClientSocket);       
+                    char *virus_found_file_paths_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, virus_found_file_paths, &cjsonallocresult, GUISocket);       
                         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
                             // send code 4 mean found virus in this batch
-                            iResult = send(ClientSocket, "4", 1, 0);
+                            iResult = send(GUISocket, "4", 1, 0);
                             if (iResult == SOCKET_ERROR) {
                                 fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                             }
 
                             size_t virus_found_file_paths_string_length = strlen(virus_found_file_paths_string);
                             if(virus_found_file_paths_string_length <= INT_MAX){
-                                iResult = send(ClientSocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
+                                iResult = send(GUISocket, (const char*)&virus_found_file_paths_string_length, sizeof(int), 0);
                                 if (iResult == SOCKET_ERROR) {
                                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                                 }
 
-                                iResult = send(ClientSocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
+                                iResult = send(GUISocket, virus_found_file_paths_string, (int)virus_found_file_paths_string_length, 0);
                                 if (iResult == SOCKET_ERROR) {
                                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                                 }
@@ -1041,7 +1041,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                 fwprintf(stderr, L"Virus found file paths string is too long to send.\n");
                                 cJSON_free(virus_found_file_paths_string);
                             
-                                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                                char unexpected_error_action = unexpected_error_occurred(GUISocket);
                                 if (unexpected_error_action == '1'){
                                     continue;
                                 } else if (unexpected_error_action == '2'){
@@ -1069,17 +1069,17 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                     size_t check_hash_failed_file_element_string_length = strlen(check_hash_failed_file_element_string);
                     if (check_hash_failed_file_element_string_length <= INT_MAX){
                         // send code 5 mean file failed to scan
-                        iResult = send(ClientSocket, "5", 1, 0);
+                        iResult = send(GUISocket, "5", 1, 0);
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
 
-                        iResult = send(ClientSocket, check_hash_failed_file_element_string, (int)check_hash_failed_file_element_string_length, 0);
+                        iResult = send(GUISocket, check_hash_failed_file_element_string, (int)check_hash_failed_file_element_string_length, 0);
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
 
-                        iResult = recv(ClientSocket, &file_scan_error_action_respone_code, 1, 0);
+                        iResult = recv(GUISocket, &file_scan_error_action_respone_code, 1, 0);
                         if (iResult == SOCKET_ERROR) {
                             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                         }
@@ -1116,22 +1116,22 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     cJSON_AddNumberToObject(current_scan_progress, "total_viruses_found", *total_viruses_found);
 
     while (1){
-        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, ClientSocket);
+        current_scan_progress_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, current_scan_progress, &cjsonallocresult, GUISocket);
 
         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
             current_scan_progress_string_length = strlen(current_scan_progress_string);
             if (current_scan_progress_string_length <= INT_MAX){
-                iResult = send(ClientSocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
+                iResult = send(GUISocket, "0", 1, 0); // send code 0 mean send current scan progress to GUI client
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
             
-                iResult = send(ClientSocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
+                iResult = send(GUISocket, (const char*)&current_scan_progress_string_length, sizeof(int), 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
                 
-                iResult = send(ClientSocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
+                iResult = send(GUISocket, current_scan_progress_string, (int)current_scan_progress_string_length, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
                 }
@@ -1142,7 +1142,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 fprintf(stderr, "current_scan_progress_string_length is too large to send\n");
                 cJSON_free(current_scan_progress_string);
 
-                char unexpected_error_action = unexpected_error_occurred(ClientSocket);
+                char unexpected_error_action = unexpected_error_occurred(GUISocket);
                 if (unexpected_error_action == '1'){
                     continue;
                 } else if (unexpected_error_action == '2'){
@@ -1170,7 +1170,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
     return 0;
 }
 
-int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET ClientSocket) {
+int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_list, cJSON* hash_string_list, SOCKET* ServerSocket, SOCKET GUISocket) {
     static int IsStopScanning = 0; // flag to stop scanning when receive stop signal from GUI client, should be static to keep its value between function calls and placed at the beginning of the function to check before doing anything
 
     if (IsStopScanning){
@@ -1227,7 +1227,7 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
         if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             // Nếu là thư mục -> Gọi đệ quy
             current_recursion_depth++;
-            scan_file_in_directory(fullPath, check_hash_failed_files_list, hash_string_list, ServerSocket, ClientSocket);
+            scan_file_in_directory(fullPath, check_hash_failed_files_list, hash_string_list, ServerSocket, GUISocket);
             current_recursion_depth--;
         } else {
             wcscpy(file_path_queue[total_file_path_in_queue], fullPath);
@@ -1238,7 +1238,7 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
                                 check_hash_failed_files_list, 
                                 hash_string_list, 
                                 ServerSocket, 
-                                ClientSocket, 
+                                GUISocket, 
                                 total_file_path_in_queue,
                                 &IsStopScanning,
                                 &total_scanned_files,
@@ -1250,13 +1250,13 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
                 total_file_path_in_queue = 0;
 
                 // send code 1 mean should continue scanning or stop scanning from GUI client
-                iResult = send(ClientSocket, "1", 1, 0);
+                iResult = send(GUISocket, "1", 1, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError()); 
                     break;
                 }
 
-                iResult = recv(ClientSocket, &should_continue_scanning_respone_code, 1, 0);
+                iResult = recv(GUISocket, &should_continue_scanning_respone_code, 1, 0);
                 if (iResult == SOCKET_ERROR) {
                     fprintf(stderr, "Client: recv failed with error: %d\n", WSAGetLastError());
                     break;
@@ -1275,7 +1275,7 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
                         check_hash_failed_files_list, 
                         hash_string_list, 
                         ServerSocket, 
-                        ClientSocket, 
+                        GUISocket, 
                         total_file_path_in_queue,
                         &IsStopScanning,
                         &total_scanned_files,
@@ -1298,7 +1298,7 @@ int scan_file_in_directory(const wchar_t* path, cJSON* check_hash_failed_files_l
     return 0;
 }
 
-int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET ClientSocket){
+int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET ServerSocket, SOCKET GUISocket){
     HANDLE hThread;
     DWORD ThreadId;
     DWORD exit_code;
@@ -1400,7 +1400,7 @@ int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET Server
 
     send_scan_result_to_gui:
     // send code 0 mean scan process finished
-    iResult = send(ClientSocket, "0", 1, 0);
+    iResult = send(GUISocket, "0", 1, 0);
     if (iResult == SOCKET_ERROR) {
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         return 1;
@@ -1408,20 +1408,20 @@ int scan_single_file(const wchar_t* path, cJSON* hash_string_list, SOCKET Server
 
     // send scan status back to GUI client
     if (IsScanHashFailed == 1){
-        iResult = send(ClientSocket, "1", 1, 0);
+        iResult = send(GUISocket, "1", 1, 0);
         if (iResult == SOCKET_ERROR) {
             fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
         }
         return 1;
     }
 
-    iResult = send(ClientSocket, "0", 1, 0);
+    iResult = send(GUISocket, "0", 1, 0);
     if (iResult == SOCKET_ERROR) {
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
     }
 
     // send scan result to GUI client
-    iResult = send(ClientSocket, server_scan_result, (int)strlen(server_scan_result), 0);
+    iResult = send(GUISocket, server_scan_result, (int)strlen(server_scan_result), 0);
     if (iResult == SOCKET_ERROR) {
         fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
     }
