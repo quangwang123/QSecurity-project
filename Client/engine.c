@@ -1104,7 +1104,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                                 }
                             }
                         } else{
-                            fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
+                            fprintf(stderr, "Failed to print check_hash_failed_file_element_string.\n");
                             if (cjsonallocresult == CJSON_ALLOC_CANCEL){
                                 *IsStopScanning = 1;
                                 return 0;
