@@ -114,18 +114,15 @@ class MainWindow(QtWidgets.QMainWindow):
                                                    "All files (*)")
         
         if file_path:
-            # self.path.setText(file_path)
             self.file_name = os.path.basename(file_path)
-            self.scan(file_path)
-        # else:
-            # self.path.setText("Chưa có tệp nào được chọn...")
+            self.scan_single_file(file_path)
     def browse_folder_scan_command(self):
         folder_path = QFileDialog.getExistingDirectory(self, "Chọn thư mục")
         if folder_path:
             self.specifiedfolderscanwindow = SpecifiedFolderScanWindow(self, folder_path)
             self.specifiedfolderscanwindow.show()
             self.close()
-    def scan(self, file_path):
+    def scan_single_file(self, file_path):
         QMessageBox.information(self, "Đang quét", "Đang quét tệp, xin vui lòng đợi")
         self.file_path_scan = file_path
         self.single_scan_intialize(file_path)
