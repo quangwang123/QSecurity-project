@@ -1066,7 +1066,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                 send_scan_result_to_gui:
                 if (IsScanHashFailed == 1){
                     char *check_hash_failed_file_element_string = NULL;
-                    char unexpected_error_action;
+                    char unexpected_error_action = '\0';
                     while (1){
                         check_hash_failed_file_element_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, check_hash_failed_file_element, &cjsonallocresult, GUISocket);
                         if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
