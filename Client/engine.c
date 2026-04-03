@@ -1065,25 +1065,56 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
 
                 send_scan_result_to_gui:
                 if (IsScanHashFailed == 1){
-                    char *check_hash_failed_file_element_string = cJSON_PrintUnformatted(check_hash_failed_file_element);
-                    size_t check_hash_failed_file_element_string_length = strlen(check_hash_failed_file_element_string);
-                    if (check_hash_failed_file_element_string_length <= INT_MAX){
-                        // send code 5 mean file failed to scan
-                        iResult = send(GUISocket, "5", 1, 0);
-                        if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                        }
+                    char *check_hash_failed_file_element_string = NULL;
+                    char unexpected_error_action;
+                    while (1){
+                        check_hash_failed_file_element_string = cJSONPrintNULLCheck(cJSON_PrintUnformatted, check_hash_failed_file_element, &cjsonallocresult, GUISocket);
+                        if (cjsonallocresult == CJSON_ALLOC_SUCCESS){
+                            size_t check_hash_failed_file_element_string_length = strlen(check_hash_failed_file_element_string);
+                            if (check_hash_failed_file_element_string_length <= INT_MAX){
+                                // send code 5 mean file failed to scan
+                                iResult = send(GUISocket, "5", 1, 0);
+                                if (iResult == SOCKET_ERROR) {
+                                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                }
 
-                        iResult = send(GUISocket, check_hash_failed_file_element_string, (int)check_hash_failed_file_element_string_length, 0);
-                        if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
-                        }
+                                iResult = send(GUISocket, check_hash_failed_file_element_string, (int)check_hash_failed_file_element_string_length, 0);
+                                if (iResult == SOCKET_ERROR) {
+                                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                }
 
-                        iResult = recv(GUISocket, &file_scan_error_action_respone_code, 1, 0);
-                        if (iResult == SOCKET_ERROR) {
-                            fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                iResult = recv(GUISocket, &file_scan_error_action_respone_code, 1, 0);
+                                if (iResult == SOCKET_ERROR) {
+                                    fprintf(stderr, "Client: send failed with error: %d\n", WSAGetLastError());
+                                }
+
+                                break;
+                            } else{
+                                fwprintf(stderr, L"Check hash failed file element string is too long to send.\n");
+                                cJSON_free(check_hash_failed_file_element_string);
+
+                                unexpected_error_action = unexpected_error_occurred(GUISocket);
+                                if (unexpected_error_action == '1'){
+                                    continue;
+                                } else if (unexpected_error_action == '2'){
+                                    break;
+                                } else if (unexpected_error_action == '3'){
+                                    *IsStopScanning = 1;
+                                    return 0;
+                                }
+                            }
+                        } else{
+                            fprintf(stderr, "Failed to print virus_found_file_paths json array.\n");
+                            if (cjsonallocresult == CJSON_ALLOC_CANCEL){
+                                *IsStopScanning = 1;
+                                return 0;
+                            } else if (cjsonallocresult == CJSON_ALLOC_SKIP){
+                                break;
+                            }
                         }
-                        
+                    }
+
+                    if (unexpected_error_action != '2' && cjsonallocresult == CJSON_ALLOC_SUCCESS){
                         if (file_scan_error_action_respone_code == '1'){
                             cJSON_free(check_hash_failed_file_element_string);
                             continue;
@@ -1098,10 +1129,7 @@ int scan_file_batch(wchar_t file_path_queue[MAX_FILE_PATH_IN_QUEUE][MAX_PATH_LEN
                         }else{
                             cJSON_free(check_hash_failed_file_element_string);
                         }
-                    } else{
-                        fwprintf(stderr, L"Check hash failed file element string is too long to send.\n");
                     }
-
                 }else{
                     *total_scanned_files += 1;
                 }
